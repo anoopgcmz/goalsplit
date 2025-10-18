@@ -53,3 +53,61 @@ The application loads configuration through `src/lib/config.ts`, which validates
 - Base font size increased for readability.
 - High contrast color palette with clear foreground/background separation.
 - Consistent focus outlines to maintain visible focus states across interactive elements.
+
+## Security & Privacy
+
+### Route Access Overview
+
+GoalSplit relies on a session cookie (or an `x-user-id` header during automated tests) to gate protected APIs. Endpoints listed in `PROTECTED_ROUTE_MATCHERS` require a valid session and immediately return `401` or `403` when the caller is not authorized.
+
+```ts
+const PROTECTED_ROUTE_MATCHERS = [
+  '/api/goals/:path*',
+  '/api/contributions/:path*',
+  '/api/shared/:path*',
+];
+```
+
+- **Public route:** `GET /api/health` exposes connectivity diagnostics and does not require authentication.
+- **Protected routes:** Goal, contribution, and shared-goal invitation endpoints all call `requireUserId`, so they demand a valid session cookie or matching `x-user-id` header before continuing.
+
+### Typed Permission Matrix
+
+```ts
+type Role = 'owner' | 'collaborator';
+
+type PermissionMatrix = {
+  'goal:view': Record<Role, boolean>;
+  'goal:update': Record<Role, boolean>;
+  'goal:delete': Record<Role, boolean>;
+  'goal:invite': Record<Role, boolean>;
+  'split:edit': Record<Role, boolean>;
+  'contribution:manage-self': Record<Role, boolean>;
+};
+
+const PERMISSIONS: PermissionMatrix = {
+  'goal:view': { owner: true, collaborator: true },
+  'goal:update': { owner: true, collaborator: false },
+  'goal:delete': { owner: true, collaborator: false },
+  'goal:invite': { owner: true, collaborator: false },
+  'split:edit': { owner: true, collaborator: false },
+  'contribution:manage-self': { owner: true, collaborator: true },
+};
+```
+
+- **Viewing shared goals:** Owners and collaborators can fetch shared goal details because membership is validated before responding.
+- **Editing goals and splits:** Only owners can PATCH or otherwise change goal metadata, including contribution splits.
+- **Deleting goals:** Only owners can delete a goal; doing so cascades to invites and contribution records.
+- **Inviting collaborators:** Owners alone can issue invitations for their goals.
+- **Managing contributions:** All authenticated users can create or update their own contribution entries; the API automatically scopes data to the caller’s user ID.
+
+### Data Privacy Boundaries
+
+- Membership checks on goal routes ensure collaborators only see goals they belong to; private goals remain invisible to other users.
+- Contribution queries are filtered by the caller’s user ID, so collaborators cannot inspect other members’ contributions or unrelated goals.
+- Invitation acceptance verifies the invitee’s email before granting access, preventing lateral movement between goals.
+
+### Session Cookie & Logout
+
+- Sessions are maintained with an HttpOnly, Secure, SameSite=`strict` cookie that expires after 7 days. The cookie is never accessible to client-side JavaScript.
+- Logging out instructs the server to invalidate the session and clear the cookie, after which all protected routes return `401` until the user signs in again.
