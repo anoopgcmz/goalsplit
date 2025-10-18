@@ -35,7 +35,7 @@ export const dbConnect = async (): Promise<typeof mongoose> => {
   if (!cache.promise) {
     cache.promise = mongoose
       .connect(config.database.uri, { dbName: config.database.name })
-      .then((connection) => {
+      .then((connection: typeof mongoose) => {
         cache.conn = connection;
         cache.connectCount += 1;
         return connection;
