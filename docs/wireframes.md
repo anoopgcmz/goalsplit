@@ -102,6 +102,7 @@
 │ │ Tabs: Base Plan | Optimistic | Pessimistic                                 │ │
 │ │ Chart area with table of per-period need                                   │ │
 │ │ Download CSV button                                                         │ │
+│ │ Link: "Compare scenarios" (opens drawer, see compare-scenarios-drawer.md)   │ │
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
