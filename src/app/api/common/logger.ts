@@ -12,6 +12,70 @@ type StructuredLogParams = {
   error?: unknown;
 };
 
+const SENSITIVE_KEYS = new Set([
+  'email',
+  'e-mail',
+  'phone',
+  'telephone',
+  'name',
+  'full_name',
+  'full-name',
+  'address',
+  'token',
+  'session',
+  'password',
+]);
+
+const emailLike = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+const sanitizeValue = (key: string, value: unknown): unknown => {
+  if (value === null) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(key, item));
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
+      (accumulator, [nestedKey, nestedValue]) => {
+        accumulator[nestedKey] = sanitizeValue(nestedKey, nestedValue);
+        return accumulator;
+      },
+      {},
+    );
+  }
+
+  if (typeof value === 'string') {
+    if (SENSITIVE_KEYS.has(key.toLowerCase()) || emailLike.test(value)) {
+      return '[redacted]';
+    }
+    return value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return '[redacted]';
+};
+
+const sanitizeContext = (context: Record<string, unknown> | undefined) => {
+  if (!context) {
+    return {};
+  }
+
+  return Object.entries(context).reduce<Record<string, unknown>>((accumulator, [key, value]) => {
+    accumulator[key] = sanitizeValue(key, value);
+    return accumulator;
+  }, {});
+};
+
 const selectConsole = (level: LogLevel) => {
   switch (level) {
     case 'debug':
@@ -32,9 +96,14 @@ export const logStructuredError = ({
   code,
   status,
   locale = 'en',
-  context = {},
+  context,
   error,
 }: StructuredLogParams) => {
+  if (typeof window !== 'undefined') {
+    // Prevent server logs from leaking into client bundles.
+    return;
+  }
+
   const base: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     level,
@@ -42,7 +111,7 @@ export const logStructuredError = ({
     code,
     status,
     locale,
-    context,
+    context: sanitizeContext(context),
   };
 
   if (error instanceof Error) {
