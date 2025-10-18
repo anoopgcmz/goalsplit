@@ -63,11 +63,29 @@ export async function GET(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Goal not found', 404);
+      return createErrorResponse(
+        'GOAL_NOT_FOUND',
+        'We could not find that goal.',
+        404,
+        {
+          hint: 'It may have been removed or you might not have access.',
+          logLevel: 'info',
+          context: { goalId: params.id, operation: 'get' },
+        }
+      );
     }
 
     if (!isGoalMember(goal, userId)) {
-      return createErrorResponse('GOAL_FORBIDDEN', 'You do not have access to this goal', 403);
+      return createErrorResponse(
+        'GOAL_FORBIDDEN',
+        'This goal belongs to someone else.',
+        403,
+        {
+          hint: 'Ask the owner to share access with you.',
+          logLevel: 'warn',
+          context: { goalId: params.id, operation: 'get' },
+        }
+      );
     }
 
     return NextResponse.json(serializeGoal(goal));
@@ -78,8 +96,13 @@ export async function GET(
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to retrieve goal details',
-      500
+      'We had trouble retrieving that goal just now.',
+      500,
+      {
+        hint: 'Please refresh in a moment.',
+        error,
+        context: { goalId: params.id, operation: 'get' },
+      }
     );
   }
 }
@@ -101,11 +124,29 @@ export async function PATCH(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Goal not found', 404);
+      return createErrorResponse(
+        'GOAL_NOT_FOUND',
+        'We could not find that goal.',
+        404,
+        {
+          hint: 'It may have been removed or you might not have access.',
+          logLevel: 'info',
+          context: { goalId: params.id, operation: 'patch' },
+        }
+      );
     }
 
     if (!isGoalOwner(goal, userId)) {
-      return createErrorResponse('GOAL_FORBIDDEN', 'Only the owner may update this goal', 403);
+      return createErrorResponse(
+        'GOAL_FORBIDDEN',
+        'Only the owner can update this goal.',
+        403,
+        {
+          hint: 'Ask the owner to apply these changes.',
+          logLevel: 'warn',
+          context: { goalId: params.id, operation: 'patch' },
+        }
+      );
     }
 
     const body = await request.json();
@@ -123,8 +164,12 @@ export async function PATCH(
     if (error instanceof SyntaxError) {
       return createErrorResponse(
         'GOAL_VALIDATION_ERROR',
-        'Invalid JSON payload',
-        400
+        'We could not read that request. Please check the data and try again.',
+        400,
+        {
+          hint: 'Ensure you are sending valid JSON.',
+          logLevel: 'warn',
+        }
       );
     }
 
@@ -134,8 +179,13 @@ export async function PATCH(
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to update goal',
-      500
+      'We could not update that goal right now.',
+      500,
+      {
+        hint: 'Please try again shortly.',
+        error,
+        context: { goalId: params.id, operation: 'patch' },
+      }
     );
   }
 }
@@ -157,11 +207,29 @@ export async function DELETE(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Goal not found', 404);
+      return createErrorResponse(
+        'GOAL_NOT_FOUND',
+        'We could not find that goal.',
+        404,
+        {
+          hint: 'It may have already been removed.',
+          logLevel: 'info',
+          context: { goalId: params.id, operation: 'delete' },
+        }
+      );
     }
 
     if (!isGoalOwner(goal, userId)) {
-      return createErrorResponse('GOAL_FORBIDDEN', 'Only the owner may delete this goal', 403);
+      return createErrorResponse(
+        'GOAL_FORBIDDEN',
+        'Only the owner can delete this goal.',
+        403,
+        {
+          hint: 'Ask the owner to remove it for you.',
+          logLevel: 'warn',
+          context: { goalId: params.id, operation: 'delete' },
+        }
+      );
     }
 
     await Promise.all([
@@ -179,8 +247,13 @@ export async function DELETE(
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to delete goal',
-      500
+      'We could not delete that goal right now.',
+      500,
+      {
+        hint: 'Please try again shortly.',
+        error,
+        context: { goalId: params.id, operation: 'delete' },
+      }
     );
   }
 }

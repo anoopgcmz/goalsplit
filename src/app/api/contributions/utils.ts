@@ -12,6 +12,21 @@ import {
   type ContributionListQuery,
   type ContributionResponse,
 } from './schemas';
+import {
+  ApiErrorResponseSchema,
+  type BackoffHint,
+  type Locale,
+} from '../common/schemas';
+import { logStructuredError } from '../common/logger';
+
+type ErrorOptions = {
+  hint?: string;
+  backoff?: BackoffHint;
+  locale?: Locale;
+  logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'none';
+  context?: Record<string, unknown>;
+  error?: unknown;
+};
 
 export const objectIdToString = (value: Types.ObjectId | string) =>
   typeof value === 'string' ? value : value.toString();
@@ -69,22 +84,47 @@ export const parseContributionListQuery = (
 export const createErrorResponse = (
   code: ContributionApiErrorCode,
   message: string,
-  status: number
-) =>
-  NextResponse.json(
-    {
-      error: {
-        code,
-        message,
-      },
+  status: number,
+  options: ErrorOptions = {}
+) => {
+  const payload = ApiErrorResponseSchema.parse({
+    error: {
+      code,
+      message,
+      locale: options.locale ?? 'en',
+      hint: options.hint,
+      backoff: options.backoff,
     },
-    { status }
-  );
+  });
+
+  if (options.logLevel !== 'none') {
+    logStructuredError({
+      level: options.logLevel ?? (status >= 500 ? 'error' : 'warn'),
+      domain: 'contribution',
+      code,
+      status,
+      locale: options.locale ?? 'en',
+      context: options.context,
+      error: options.error,
+    });
+  }
+
+  return NextResponse.json(payload, { status });
+};
 
 export const handleZodError = (error: unknown) => {
   if (error instanceof ZodError) {
     const message = error.errors.map((err) => err.message).join('; ');
-    return createErrorResponse('CONTRIBUTION_VALIDATION_ERROR', message, 400);
+    return createErrorResponse(
+      'CONTRIBUTION_VALIDATION_ERROR',
+      `Please update the highlighted fields: ${message}`,
+      400,
+      {
+        hint: 'Double-check the contribution details and try again.',
+        logLevel: 'warn',
+        context: { issues: error.errors.length },
+      }
+    );
   }
 
   throw error;
@@ -100,16 +140,24 @@ export const requireUserId = (
   if (!identifier) {
     return createErrorResponse(
       'CONTRIBUTION_UNAUTHORIZED',
-      'Missing authentication context',
-      401
+      'We could not find your session. Please sign in to continue.',
+      401,
+      {
+        hint: 'Sign in again so we can save your latest updates.',
+        logLevel: 'info',
+      }
     );
   }
 
   if (!Types.ObjectId.isValid(identifier)) {
     return createErrorResponse(
       'CONTRIBUTION_UNAUTHORIZED',
-      'Invalid authentication context',
-      401
+      'Your session looks unusual. Please sign in once more to keep things secure.',
+      401,
+      {
+        hint: 'Sign out and back in to refresh your session.',
+        logLevel: 'warn',
+      }
     );
   }
 

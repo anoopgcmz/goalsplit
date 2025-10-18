@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { Types } from 'mongoose';
+import { ZodError } from 'zod';
+import { createHash } from 'crypto';
+
+import {
+  ApiErrorResponseSchema,
+  type BackoffHint,
+  type Locale,
+} from '../common/schemas';
+import { logStructuredError } from '../common/logger';
+import { AuthApiErrorCode } from './schemas';
+
+export const normaliseEmail = (email: string) => email.trim().toLowerCase();
+
+export const hashIdentifier = (identifier: string) =>
+  createHash('sha256').update(identifier).digest('hex');
+
+type ErrorOptions = {
+  hint?: string;
+  backoff?: BackoffHint;
+  locale?: Locale;
+  logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'none';
+  context?: Record<string, unknown>;
+  error?: unknown;
+};
+
+export const createAuthErrorResponse = (
+  code: AuthApiErrorCode,
+  message: string,
+  status: number,
+  options: ErrorOptions = {}
+) => {
+  const payload = ApiErrorResponseSchema.parse({
+    error: {
+      code,
+      message,
+      locale: options.locale ?? 'en',
+      hint: options.hint,
+      backoff: options.backoff,
+    },
+  });
+
+  if (options.logLevel !== 'none') {
+    logStructuredError({
+      level: options.logLevel ?? (status >= 500 ? 'error' : 'warn'),
+      domain: 'auth',
+      code,
+      status,
+      locale: options.locale ?? 'en',
+      context: options.context,
+      error: options.error,
+    });
+  }
+
+  return NextResponse.json(payload, { status });
+};
+
+export const handleAuthZodError = (error: unknown) => {
+  if (error instanceof ZodError) {
+    const message = error.errors.map((issue) => issue.message).join('; ');
+    return createAuthErrorResponse(
+      'AUTH_VALIDATION_ERROR',
+      `Please update the highlighted fields: ${message}`,
+      400,
+      {
+        hint: 'Check the details and try again.',
+        logLevel: 'warn',
+        context: { issues: error.errors.length },
+      }
+    );
+  }
+
+  throw error;
+};
+
+export const requireSessionUserId = (
+  request: NextRequest
+): Types.ObjectId | NextResponse => {
+  const identifier = request.cookies.get('session')?.value;
+
+  if (!identifier) {
+    return createAuthErrorResponse(
+      'AUTH_UNAUTHORIZED',
+      'We could not find your session. Please sign in to continue.',
+      401,
+      {
+        hint: 'Request a new sign-in code to continue.',
+        logLevel: 'info',
+      }
+    );
+  }
+
+  if (!Types.ObjectId.isValid(identifier)) {
+    return createAuthErrorResponse(
+      'AUTH_UNAUTHORIZED',
+      'Your session looks unusual. Please sign in again to keep things secure.',
+      401,
+      {
+        hint: 'Sign in again to refresh your session.',
+        logLevel: 'warn',
+      }
+    );
+  }
+
+  return new Types.ObjectId(identifier);
+};

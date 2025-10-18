@@ -43,7 +43,16 @@ export async function GET(
     const goalDoc = await GoalModel.findById(goalId);
 
     if (!goalDoc) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Goal not found', 404);
+      return createErrorResponse(
+        'GOAL_NOT_FOUND',
+        'We could not find that goal.',
+        404,
+        {
+          hint: 'It may have been removed.',
+          logLevel: 'info',
+          context: { goalId: params.id, operation: 'plan' },
+        }
+      );
     }
 
     const serialized = serializeGoal(goalDoc);
@@ -74,7 +83,16 @@ export async function GET(
     const isMember = serialized.members.some((member) => member.userId === normalizedUserId);
 
     if (!isOwner && !isMember) {
-      return createErrorResponse('GOAL_FORBIDDEN', 'You do not have access to this goal', 403);
+      return createErrorResponse(
+        'GOAL_FORBIDDEN',
+        'This goal belongs to someone else.',
+        403,
+        {
+          hint: 'Ask the owner to share access with you.',
+          logLevel: 'warn',
+          context: { goalId: params.id, operation: 'plan' },
+        }
+      );
     }
 
     const now = new Date();
@@ -205,8 +223,13 @@ export async function GET(
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to build goal plan',
-      500
+      'We could not build that plan right now.',
+      500,
+      {
+        hint: 'Please try again shortly.',
+        error,
+        context: { goalId: params.id, operation: 'plan' },
+      }
     );
   }
 }

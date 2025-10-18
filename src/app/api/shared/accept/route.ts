@@ -15,9 +15,14 @@ import {
   requireUserId,
   serializeGoal,
 } from '../../goals/utils';
+import { GoalResponseSchema } from '../../goals/schemas';
 
 const AcceptInviteSchema = z.object({
   token: z.string().trim().min(1, 'Invitation token is required'),
+});
+
+const AcceptInviteResponseSchema = z.object({
+  goal: GoalResponseSchema,
 });
 
 const normaliseEmail = (email: string) => email.trim().toLowerCase();
@@ -75,22 +80,41 @@ export async function POST(request: NextRequest) {
     const invite = await InviteModel.findOne({ token: parsedBody.token });
 
     if (!invite) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Invitation not found', 404);
+      return createErrorResponse(
+        'GOAL_NOT_FOUND',
+        'We could not find that invitation.',
+        404,
+        {
+          hint: 'It may have already been used or revoked.',
+          logLevel: 'info',
+          context: { token: parsedBody.token, operation: 'accept-invite' },
+        }
+      );
     }
 
     if (invite.acceptedAt) {
       return createErrorResponse(
         'GOAL_CONFLICT',
-        'Invitation has already been accepted',
-        409
+        'This invitation was already accepted.',
+        409,
+        {
+          hint: 'Ask the goal owner to send a new invitation if needed.',
+          logLevel: 'info',
+          context: { inviteId: invite._id.toString(), operation: 'accept-invite' },
+        }
       );
     }
 
     if (invite.expiresAt.getTime() <= Date.now()) {
       return createErrorResponse(
         'GOAL_CONFLICT',
-        'Invitation has expired',
-        409
+        'This invitation has expired.',
+        409,
+        {
+          hint: 'Ask the goal owner to send a fresh invitation.',
+          logLevel: 'info',
+          context: { inviteId: invite._id.toString(), operation: 'accept-invite' },
+        }
       );
     }
 
@@ -100,22 +124,41 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (!goal) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Goal not found', 404);
+      return createErrorResponse(
+        'GOAL_NOT_FOUND',
+        'We could not find that goal.',
+        404,
+        {
+          hint: 'It may have been removed.',
+          logLevel: 'info',
+          context: { inviteId: invite._id.toString(), goalId: invite.goalId.toString(), operation: 'accept-invite' },
+        }
+      );
     }
 
     if (!user) {
       return createErrorResponse(
         'GOAL_UNAUTHORIZED',
-        'User context is invalid',
-        401
+        'We could not verify your account for this invitation.',
+        401,
+        {
+          hint: 'Please sign in again and retry the link.',
+          logLevel: 'warn',
+          context: { userId: userId.toString(), operation: 'accept-invite' },
+        }
       );
     }
 
     if (normaliseEmail(user.email) !== normaliseEmail(invite.email)) {
       return createErrorResponse(
         'GOAL_FORBIDDEN',
-        'This invitation is not assigned to your email address',
-        403
+        'This invitation was sent to a different email address.',
+        403,
+        {
+          hint: 'Ask the goal owner to invite your current email.',
+          logLevel: 'warn',
+          context: { inviteId: invite._id.toString(), operation: 'accept-invite' },
+        }
       );
     }
 
@@ -129,8 +172,13 @@ export async function POST(request: NextRequest) {
     if (isAlreadyMember) {
       return createErrorResponse(
         'GOAL_CONFLICT',
-        'You are already a member of this goal',
-        409
+        'You already collaborate on this goal.',
+        409,
+        {
+          hint: 'You can view the goal from your dashboard.',
+          logLevel: 'info',
+          context: { inviteId: invite._id.toString(), operation: 'accept-invite' },
+        }
       );
     }
 
@@ -150,14 +198,19 @@ export async function POST(request: NextRequest) {
     const [updatedGoal] = await Promise.all([goal.save(), invite.save()]);
 
     const serialized = serializeGoal(updatedGoal);
+    const payload = AcceptInviteResponseSchema.parse({ goal: serialized });
 
-    return NextResponse.json({ goal: serialized });
+    return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createErrorResponse(
         'GOAL_VALIDATION_ERROR',
-        'Invalid JSON payload',
-        400
+        'We could not read that request. Please check the data and try again.',
+        400,
+        {
+          hint: 'Ensure you are sending valid JSON.',
+          logLevel: 'warn',
+        }
       );
     }
 
@@ -167,8 +220,13 @@ export async function POST(request: NextRequest) {
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to accept invitation',
-      500
+      'We could not accept that invitation right now.',
+      500,
+      {
+        hint: 'Please try the link again shortly.',
+        error,
+        context: { operation: 'accept-invite' },
+      }
     );
   }
 }

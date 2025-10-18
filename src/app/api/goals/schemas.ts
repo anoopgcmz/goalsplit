@@ -72,6 +72,7 @@ export const GoalResponseSchema = z.object({
   members: z.array(GoalMemberResponseSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
+  warnings: z.array(z.string()).optional(),
 });
 
 export const GoalListResponseSchema = z.object({
@@ -95,9 +96,9 @@ export const GoalListQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
-export const CreateGoalInputSchema = z.object({
+const GoalDetailsSchema = z.object({
   title: z.string().trim().min(1).max(200),
-  targetAmount: z.coerce.number().finite().min(0),
+  targetAmount: z.coerce.number().finite(),
   currency: z
     .string()
     .trim()
@@ -111,13 +112,41 @@ export const CreateGoalInputSchema = z.object({
   existingSavings: z.coerce.number().finite().min(0).optional(),
 });
 
-export const UpdateGoalInputSchema = CreateGoalInputSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  {
+const enforceGoalBusinessRules = (
+  value: Partial<z.infer<typeof GoalDetailsSchema>>,
+  ctx: z.RefinementCtx
+) => {
+  if ('targetAmount' in value && typeof value.targetAmount === 'number') {
+    if (value.targetAmount <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Set a target amount greater than zero to plan your savings.',
+        path: ['targetAmount'],
+      });
+    }
+  }
+
+  if (value.targetDate instanceof Date) {
+    if (value.targetDate.getTime() <= Date.now()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose a future target date so we can map each step for you.',
+        path: ['targetDate'],
+      });
+    }
+  }
+};
+
+export const CreateGoalInputSchema = GoalDetailsSchema.superRefine(
+  (value, ctx) => enforceGoalBusinessRules(value, ctx)
+);
+
+export const UpdateGoalInputSchema = GoalDetailsSchema.partial()
+  .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field must be supplied',
     path: [],
-  }
-);
+  })
+  .superRefine((value, ctx) => enforceGoalBusinessRules(value, ctx));
 
 export type CreateGoalInput = z.infer<typeof CreateGoalInputSchema>;
 export type UpdateGoalInput = z.infer<typeof UpdateGoalInputSchema>;

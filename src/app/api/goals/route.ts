@@ -4,7 +4,7 @@ import { ZodError } from 'zod';
 import { dbConnect } from '@/lib/mongo';
 import GoalModel from '@/models/goal';
 
-import { CreateGoalInputSchema } from './schemas';
+import { CreateGoalInputSchema, GoalListResponseSchema } from './schemas';
 import {
   createErrorResponse,
   handleZodError,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     const data = goals.map((goal) => serializeGoal(goal));
 
-    return NextResponse.json({
+    const payload = GoalListResponseSchema.parse({
       data,
       pagination: {
         page: query.page,
@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
         order: query.sortOrder,
       },
     });
+
+    return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof ZodError) {
       return handleZodError(error);
@@ -65,8 +67,13 @@ export async function GET(request: NextRequest) {
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to fetch goals',
-      500
+      'We had trouble loading your goals just now.',
+      500,
+      {
+        hint: 'Please refresh in a few moments while we reconnect.',
+        error,
+        context: { operation: 'list' },
+      }
     );
   }
 }
@@ -109,8 +116,12 @@ export async function POST(request: NextRequest) {
     if (error instanceof SyntaxError) {
       return createErrorResponse(
         'GOAL_VALIDATION_ERROR',
-        'Invalid JSON payload',
-        400
+        'We could not read that request. Please check the data and try again.',
+        400,
+        {
+          hint: 'Ensure you are sending valid JSON.',
+          logLevel: 'warn',
+        }
       );
     }
 
@@ -120,8 +131,13 @@ export async function POST(request: NextRequest) {
 
     return createErrorResponse(
       'GOAL_INTERNAL_ERROR',
-      'Unable to create goal',
-      500
+      'We could not create that goal right now.',
+      500,
+      {
+        hint: 'Please try again in a moment.',
+        error,
+        context: { operation: 'create' },
+      }
     );
   }
 }

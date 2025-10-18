@@ -24,7 +24,7 @@ const PeriodStringSchema = z
   .trim()
   .min(1, 'Contribution period is required')
   .refine((value) => !Number.isNaN(Date.parse(value)), {
-    message: 'Invalid contribution period supplied',
+    message: 'Choose a valid contribution month to continue.',
   });
 
 export const ContributionApiErrorCodeSchema = z.enum([
@@ -55,7 +55,13 @@ export const ContributionListResponseSchema = z.object({
 
 export const UpsertContributionInputSchema = z.object({
   goalId: ObjectIdStringSchema,
-  amount: z.coerce.number().finite().min(0),
+  amount: z.coerce
+    .number()
+    .finite()
+    .refine((value) => value > 0, {
+      message:
+        'Enter an amount greater than zero so we can track your progress.',
+    }),
   period: PeriodStringSchema,
 });
 
