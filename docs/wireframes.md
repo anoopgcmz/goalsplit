@@ -30,6 +30,48 @@
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Current period contribution tracker
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Section Title: "This month's progress"                                       │
+│ Description text: "Compare planned contributions with what's been received." │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Goal selector (combobox, label "Goal" with helper text)                      │
+│ ┌──────────────────────────────────────────────────────────────────────────┐ │
+│ │ Label: Goal                                                               │ │
+│ │ [Community workspace refresh ▼]                                           │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│ Period chips (segmented control, aria-label="Contribution period")          │
+│ [◉ This month]  [○ Last month]  [○ Custom…]                                  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Progress Summary                                                             │
+│ ┌──────────────────────────────────────────────────────────────────────────┐ │
+│ │ Left column                                                               │ │
+│ │  • Heading: "Contributed"                                                │ │
+│ │  • Large number: "$1,250"                                               │ │
+│ │  • Subtext: "Planned: $1,600"                                           │ │
+│ │                                                                          │ │
+│ │ Right column                                                             │ │
+│ │  • Circular progress indicator labelled "78% of plan"                   │ │
+│ │  • Accessible summary text: "Short by $350"                              │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Contributions list (aria-describedby linking to period summary)              │
+│ ┌──────────────────────────────────────────────────────────────────────────┐ │
+│ │ Row: Member avatar + name | Amount this month | Chip showing status       │ │
+│ │ Status chip text examples: "On track", "Needs follow-up"                 │ │
+│ └──────────────────────────────────────────────────────────────────────────┘ │
+│ Inline call-to-action: "Record a contribution" (secondary button)          │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Accessibility notes for tracker**
+- Goal combobox announces the selected goal and exposes helper text with contribution totals.
+- Segmented control implements `role="radiogroup"` with keyboard navigation and visible focus.
+- Progress indicator mirrors its value in plain text (`aria-describedby`) for screen readers.
+- Contribution rows use `<ul>`/`<li>` semantics with labels describing amount and status changes.
+
 **Accessibility notes**
 - `Add Goal` primary button: `aria-label="Add a new goal"`, keyboard focus order after page title.
 - Each card is a `<section>` with `aria-labelledby` linking to the goal title.
