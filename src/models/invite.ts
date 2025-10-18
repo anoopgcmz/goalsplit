@@ -10,6 +10,8 @@ export interface Invite {
   expiresAt: Date;
   createdBy: Types.ObjectId | UserId;
   acceptedAt?: Date;
+  defaultSplitPercent?: number;
+  fixedAmount?: number | null;
 }
 
 export type InviteDoc = HydratedDocument<Invite>;
@@ -50,6 +52,15 @@ const inviteSchema = new Schema<Invite>(
     },
     acceptedAt: {
       type: Date,
+    },
+    defaultSplitPercent: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    fixedAmount: {
+      type: Number,
+      min: 0,
     },
   },
   { timestamps: true }
