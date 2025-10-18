@@ -224,6 +224,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GoalError'
+  /api/goals/{id}/plan:
+    get:
+      summary: Build a funding plan for a goal
+      tags:
+        - Goals
+      security:
+        - sessionCookieAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Funding plan with per-member allocations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalPlan'
+              examples:
+                solo:
+                  $ref: '#/components/examples/GoalPlanSolo'
+                shared:
+                  $ref: '#/components/examples/GoalPlanShared'
+        '400':
+          description: Invalid goal identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalError'
+        '401':
+          description: Missing or invalid session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalError'
+        '403':
+          description: User does not have access to the goal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalError'
+        '404':
+          description: Goal not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalError'
 components:
   securitySchemes:
     sessionCookieAuth:
@@ -398,6 +447,33 @@ components:
         expectedRate:
           type: number
           minimum: 0
+    GoalPlanGoal:
+      type: object
+      required:
+        - id
+        - title
+        - currency
+        - targetAmount
+        - targetDate
+        - expectedRate
+        - compounding
+        - contributionFrequency
+        - existingSavings
+        - isShared
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        currency:
+          type: string
+        targetAmount:
+          type: number
+        targetDate:
+          type: string
+          format: date-time
+        expectedRate:
+          type: number
         compounding:
           type: string
           enum: [monthly, yearly]
@@ -407,6 +483,159 @@ components:
         existingSavings:
           type: number
           minimum: 0
+        isShared:
+          type: boolean
+    GoalPlanHorizon:
+      type: object
+      required:
+        - years
+        - months
+        - totalPeriods
+        - nPerYear
+      properties:
+        years:
+          type: number
+          minimum: 0
+        months:
+          type: number
+          minimum: 0
+          maximum: 11
+        totalPeriods:
+          type: number
+          minimum: 0
+        nPerYear:
+          type: integer
+          enum: [1, 12]
+    GoalPlanTotals:
+      type: object
+      required:
+        - perPeriod
+        - lumpSumNow
+      properties:
+        perPeriod:
+          type: number
+        lumpSumNow:
+          type: number
+    GoalPlanMember:
+      allOf:
+        - $ref: '#/components/schemas/GoalMember'
+        - type: object
+          required:
+            - perPeriod
+          properties:
+            perPeriod:
+              type: number
+    GoalPlan:
+      type: object
+      required:
+        - goal
+        - horizon
+        - totals
+        - members
+        - assumptions
+      properties:
+        goal:
+          $ref: '#/components/schemas/GoalPlanGoal'
+        horizon:
+          $ref: '#/components/schemas/GoalPlanHorizon'
+        totals:
+          $ref: '#/components/schemas/GoalPlanTotals'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoalPlanMember'
+        assumptions:
+          type: object
+          required:
+            - expectedRate
+            - compounding
+            - contributionFrequency
+          properties:
+            expectedRate:
+              type: number
+            compounding:
+              type: string
+              enum: [monthly, yearly]
+            contributionFrequency:
+              type: string
+              enum: [monthly, yearly]
+        warnings:
+          type: array
+          items:
+            type: string
+  examples:
+    GoalPlanSolo:
+      summary: Solo goal funded monthly
+      value:
+        goal:
+          id: 64fa3b0e5b3c2c001edc1234
+          title: Buy a motorcycle
+          currency: INR
+          targetAmount: 250000
+          targetDate: '2026-06-01T00:00:00.000Z'
+          expectedRate: 8
+          compounding: monthly
+          contributionFrequency: monthly
+          existingSavings: 50000
+          isShared: false
+        horizon:
+          years: 2
+          months: 0
+          totalPeriods: 24
+          nPerYear: 12
+        totals:
+          perPeriod: 9640.15619737948
+          lumpSumNow: 213149.09398717133
+        members:
+          - userId: 64fa3b0e5b3c2c001edc1234
+            role: owner
+            splitPercent: 100
+            perPeriod: 9640.15619737948
+        assumptions:
+          expectedRate: 8
+          compounding: monthly
+          contributionFrequency: monthly
+    GoalPlanShared:
+      summary: Shared goal with mixed splits
+      value:
+        goal:
+          id: 64fa3b0e5b3c2c001edc5678
+          title: Family vacation
+          currency: INR
+          targetAmount: 600000
+          targetDate: '2027-12-31T00:00:00.000Z'
+          expectedRate: 6.5
+          compounding: yearly
+          contributionFrequency: monthly
+          existingSavings: 120000
+          isShared: true
+        horizon:
+          years: 3
+          months: 6
+          totalPeriods: 42
+          nPerYear: 12
+        totals:
+          perPeriod: 14200.55
+          lumpSumNow: 342125.19
+        members:
+          - userId: 64fa3b0e5b3c2c001edc5678
+            role: owner
+            fixedAmount: 5000
+            perPeriod: 5000
+          - userId: 64fa3b0e5b3c2c001edc5679
+            role: collaborator
+            splitPercent: 60
+            perPeriod: 5520.33
+          - userId: 64fa3b0e5b3c2c001edc5680
+            role: collaborator
+            splitPercent: 40
+            perPeriod: 3680.22
+        assumptions:
+          expectedRate: 6.5
+          compounding: yearly
+          contributionFrequency: monthly
+        warnings:
+          - Split percentages do not sum to 100%; allocations normalised.
     GoalError:
       type: object
       required:
@@ -486,6 +715,10 @@ export const GoalMemberResponseSchema = z.object({
   fixedAmount: z.number().min(0).optional(),
 });
 
+export const GoalPlanMemberSchema = GoalMemberResponseSchema.extend({
+  perPeriod: z.number(),
+});
+
 export const GoalResponseSchema = z.object({
   id: z.string(),
   ownerId: z.string(),
@@ -503,6 +736,39 @@ export const GoalResponseSchema = z.object({
   updatedAt: z.string(),
 });
 export type GoalResponse = z.infer<typeof GoalResponseSchema>;
+
+export const GoalPlanResponseSchema = z.object({
+  goal: z.object({
+    id: z.string(),
+    title: z.string(),
+    currency: z.string(),
+    targetAmount: z.number(),
+    targetDate: z.string(),
+    expectedRate: z.number(),
+    compounding: z.enum(['monthly', 'yearly']),
+    contributionFrequency: z.enum(['monthly', 'yearly']),
+    existingSavings: z.number(),
+    isShared: z.boolean(),
+  }),
+  horizon: z.object({
+    years: z.number().min(0),
+    months: z.number().min(0).max(11),
+    totalPeriods: z.number().min(0),
+    nPerYear: z.union([z.literal(1), z.literal(12)]),
+  }),
+  totals: z.object({
+    perPeriod: z.number(),
+    lumpSumNow: z.number(),
+  }),
+  members: z.array(GoalPlanMemberSchema),
+  assumptions: z.object({
+    expectedRate: z.number(),
+    compounding: z.enum(['monthly', 'yearly']),
+    contributionFrequency: z.enum(['monthly', 'yearly']),
+  }),
+  warnings: z.array(z.string()).optional(),
+});
+export type GoalPlanResponse = z.infer<typeof GoalPlanResponseSchema>;
 
 export const GoalListResponseSchema = z.object({
   data: z.array(GoalResponseSchema),

@@ -21,6 +21,42 @@ export const GoalMemberResponseSchema = z.object({
   fixedAmount: z.number().min(0).optional(),
 });
 
+export const GoalPlanMemberSchema = GoalMemberResponseSchema.extend({
+  perPeriod: z.number(),
+});
+
+export const GoalPlanResponseSchema = z.object({
+  goal: z.object({
+    id: z.string(),
+    title: z.string(),
+    currency: z.string(),
+    targetAmount: z.number(),
+    targetDate: z.string(),
+    expectedRate: z.number(),
+    compounding: z.enum(['monthly', 'yearly']),
+    contributionFrequency: z.enum(['monthly', 'yearly']),
+    existingSavings: z.number(),
+    isShared: z.boolean(),
+  }),
+  horizon: z.object({
+    years: z.number().min(0),
+    months: z.number().min(0).max(11),
+    totalPeriods: z.number().min(0),
+    nPerYear: z.union([z.literal(1), z.literal(12)]),
+  }),
+  totals: z.object({
+    perPeriod: z.number(),
+    lumpSumNow: z.number(),
+  }),
+  members: z.array(GoalPlanMemberSchema),
+  assumptions: z.object({
+    expectedRate: z.number(),
+    compounding: z.enum(['monthly', 'yearly']),
+    contributionFrequency: z.enum(['monthly', 'yearly']),
+  }),
+  warnings: z.array(z.string()).optional(),
+});
+
 export const GoalResponseSchema = z.object({
   id: z.string(),
   ownerId: z.string(),
@@ -88,3 +124,4 @@ export type UpdateGoalInput = z.infer<typeof UpdateGoalInputSchema>;
 export type GoalListQuery = z.infer<typeof GoalListQuerySchema>;
 export type GoalResponse = z.infer<typeof GoalResponseSchema>;
 export type GoalListResponse = z.infer<typeof GoalListResponseSchema>;
+export type GoalPlanResponse = z.infer<typeof GoalPlanResponseSchema>;
