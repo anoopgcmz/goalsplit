@@ -1,4 +1,5 @@
-import mongoose, { HydratedDocument, Model, Schema } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
+import type { HydratedDocument, Model } from "mongoose";
 
 export interface OtpRequestCounter {
   email: string;
@@ -32,14 +33,11 @@ const otpRequestCounterSchema = new Schema<OtpRequestCounter>(
       default: 0,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const OtpRequestCounterModel: OtpRequestCounterModel =
   (mongoose.models.OtpRequestCounter as OtpRequestCounterModel) ||
-  mongoose.model<OtpRequestCounter>(
-    'OtpRequestCounter',
-    otpRequestCounterSchema
-  );
+  mongoose.model<OtpRequestCounter>("OtpRequestCounter", otpRequestCounterSchema);
 
 export default OtpRequestCounterModel;

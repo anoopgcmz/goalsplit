@@ -1,14 +1,12 @@
-import mongoose, { HydratedDocument, Model, Schema, Types } from 'mongoose';
-
-import type { GoalId } from './goal';
-import type { UserId } from './user';
+import mongoose, { Schema } from "mongoose";
+import type { HydratedDocument, Model, Types } from "mongoose";
 
 export interface Invite {
-  goalId: Types.ObjectId | GoalId;
+  goalId: Types.ObjectId;
   email: string;
   token: string;
   expiresAt: Date;
-  createdBy: Types.ObjectId | UserId;
+  createdBy: Types.ObjectId;
   acceptedAt?: Date;
   defaultSplitPercent?: number;
   fixedAmount?: number | null;
@@ -22,7 +20,7 @@ const inviteSchema = new Schema<Invite>(
   {
     goalId: {
       type: Schema.Types.ObjectId,
-      ref: 'Goal',
+      ref: "Goal",
       required: true,
       index: true,
     },
@@ -46,7 +44,7 @@ const inviteSchema = new Schema<Invite>(
     },
     createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true,
     },
@@ -63,13 +61,14 @@ const inviteSchema = new Schema<Invite>(
       min: 0,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 inviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 inviteSchema.index({ goalId: 1, email: 1 }, { unique: true });
 
 export const InviteModel: InviteModel =
-  (mongoose.models.Invite as InviteModel) || mongoose.model<Invite>('Invite', inviteSchema);
+  (mongoose.models.Invite as InviteModel) ||
+  mongoose.model<Invite>("Invite", inviteSchema);
 
 export default InviteModel;

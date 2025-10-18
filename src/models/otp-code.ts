@@ -1,4 +1,5 @@
-import mongoose, { HydratedDocument, Model, Schema } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
+import type { HydratedDocument, Model } from "mongoose";
 
 export interface OtpCode {
   email: string;
@@ -39,13 +40,14 @@ const otpCodeSchema = new Schema<OtpCode>(
       index: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 otpCodeSchema.index({ email: 1, code: 1 }, { unique: true });
 otpCodeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const OtpCodeModel: OtpCodeModel =
-  (mongoose.models.OtpCode as OtpCodeModel) || mongoose.model<OtpCode>('OtpCode', otpCodeSchema);
+  (mongoose.models.OtpCode as OtpCodeModel) ||
+  mongoose.model<OtpCode>("OtpCode", otpCodeSchema);
 
 export default OtpCodeModel;

@@ -1,12 +1,12 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-import { config } from './config';
+import { config } from "./config";
 
-type MongooseCache = {
+interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
   connectCount: number;
-};
+}
 
 declare global {
   // eslint-disable-next-line no-var

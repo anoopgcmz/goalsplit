@@ -1,13 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Types } from 'mongoose';
-import { ZodError } from 'zod';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { HydratedDocument, Types } from "mongoose";
+import { ZodError } from "zod";
 
-import { dbConnect } from '@/lib/mongo';
-import ContributionModel from '@/models/contribution';
-import GoalModel from '@/models/goal';
-import InviteModel from '@/models/invite';
+import { dbConnect } from "@/lib/mongo";
+import ContributionModel from "@/models/contribution";
+import GoalModel, { type Goal } from "@/models/goal";
+import InviteModel from "@/models/invite";
 
-import { UpdateGoalInputSchema } from '../schemas';
+import { UpdateGoalInputSchema } from "../schemas";
 import {
   createErrorResponse,
   handleZodError,
@@ -16,40 +17,38 @@ import {
   parseObjectId,
   requireUserId,
   serializeGoal,
-} from '../utils';
+} from "../utils";
 
-const isGoalMember = (goal: Awaited<ReturnType<typeof GoalModel.findById>>, userId: Types.ObjectId) => {
+type GoalDocument = HydratedDocument<Goal>;
+
+const isGoalMember = (goal: GoalDocument | null, userId: Types.ObjectId) => {
   if (!goal) {
     return false;
   }
 
+  const goalObject = goal.toObject<Goal>();
   const normalizedUserId = objectIdToString(userId);
-  const ownerIdMatches = objectIdToString(goal.ownerId as Types.ObjectId | string) === normalizedUserId;
+  const ownerIdMatches = objectIdToString(goalObject.ownerId) === normalizedUserId;
 
   if (ownerIdMatches) {
     return true;
   }
 
-  return goal.members.some(
-    (member) => objectIdToString(member.userId as Types.ObjectId | string) === normalizedUserId
-  );
+  return goalObject.members.some((member) => {
+    return objectIdToString(member.userId) === normalizedUserId;
+  });
 };
 
-const isGoalOwner = (goal: Awaited<ReturnType<typeof GoalModel.findById>>, userId: Types.ObjectId) => {
+const isGoalOwner = (goal: GoalDocument | null, userId: Types.ObjectId) => {
   if (!goal) {
     return false;
   }
 
-  return (
-    objectIdToString(goal.ownerId as Types.ObjectId | string) ===
-    objectIdToString(userId)
-  );
+  const goalObject = goal.toObject<Goal>();
+  return objectIdToString(goalObject.ownerId) === objectIdToString(userId);
 };
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
 
@@ -63,28 +62,23 @@ export async function GET(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse(
-        'GOAL_NOT_FOUND',
-        'We could not find that goal.',
-        404,
-        {
-          hint: 'It may have been removed or you might not have access.',
-          logLevel: 'info',
-          context: { goalId: params.id, operation: 'get' },
-        }
-      );
+      return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
+        hint: "It may have been removed or you might not have access.",
+        logLevel: "info",
+        context: { goalId: params.id, operation: "get" },
+      });
     }
 
     if (!isGoalMember(goal, userId)) {
       return createErrorResponse(
-        'GOAL_FORBIDDEN',
-        'This goal belongs to someone else.',
+        "GOAL_FORBIDDEN",
+        "This goal belongs to someone else.",
         403,
         {
-          hint: 'Ask the owner to share access with you.',
-          logLevel: 'warn',
-          context: { goalId: params.id, operation: 'get' },
-        }
+          hint: "Ask the owner to share access with you.",
+          logLevel: "warn",
+          context: { goalId: params.id, operation: "get" },
+        },
       );
     }
 
@@ -95,21 +89,21 @@ export async function GET(
     }
 
     return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'We had trouble retrieving that goal just now.',
+      "GOAL_INTERNAL_ERROR",
+      "We had trouble retrieving that goal just now.",
       500,
       {
-        hint: 'Please refresh in a moment.',
+        hint: "Please refresh in a moment.",
         error,
-        context: { goalId: params.id, operation: 'get' },
-      }
+        context: { goalId: params.id, operation: "get" },
+      },
     );
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     await dbConnect();
@@ -124,32 +118,27 @@ export async function PATCH(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse(
-        'GOAL_NOT_FOUND',
-        'We could not find that goal.',
-        404,
-        {
-          hint: 'It may have been removed or you might not have access.',
-          logLevel: 'info',
-          context: { goalId: params.id, operation: 'patch' },
-        }
-      );
+      return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
+        hint: "It may have been removed or you might not have access.",
+        logLevel: "info",
+        context: { goalId: params.id, operation: "patch" },
+      });
     }
 
     if (!isGoalOwner(goal, userId)) {
       return createErrorResponse(
-        'GOAL_FORBIDDEN',
-        'Only the owner can update this goal.',
+        "GOAL_FORBIDDEN",
+        "Only the owner can update this goal.",
         403,
         {
-          hint: 'Ask the owner to apply these changes.',
-          logLevel: 'warn',
-          context: { goalId: params.id, operation: 'patch' },
-        }
+          hint: "Ask the owner to apply these changes.",
+          logLevel: "warn",
+          context: { goalId: params.id, operation: "patch" },
+        },
       );
     }
 
-    const body = await request.json();
+    const body: unknown = await request.json();
     const parsedBody = UpdateGoalInputSchema.parse(body);
 
     goal.set({
@@ -163,13 +152,13 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createErrorResponse(
-        'GOAL_VALIDATION_ERROR',
-        'We could not read that request. Please check the data and try again.',
+        "GOAL_VALIDATION_ERROR",
+        "We could not read that request. Please check the data and try again.",
         400,
         {
-          hint: 'Ensure you are sending valid JSON.',
-          logLevel: 'warn',
-        }
+          hint: "Ensure you are sending valid JSON.",
+          logLevel: "warn",
+        },
       );
     }
 
@@ -178,21 +167,21 @@ export async function PATCH(
     }
 
     return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'We could not update that goal right now.',
+      "GOAL_INTERNAL_ERROR",
+      "We could not update that goal right now.",
       500,
       {
-        hint: 'Please try again shortly.',
+        hint: "Please try again shortly.",
         error,
-        context: { goalId: params.id, operation: 'patch' },
-      }
+        context: { goalId: params.id, operation: "patch" },
+      },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     await dbConnect();
@@ -207,28 +196,23 @@ export async function DELETE(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse(
-        'GOAL_NOT_FOUND',
-        'We could not find that goal.',
-        404,
-        {
-          hint: 'It may have already been removed.',
-          logLevel: 'info',
-          context: { goalId: params.id, operation: 'delete' },
-        }
-      );
+      return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
+        hint: "It may have already been removed.",
+        logLevel: "info",
+        context: { goalId: params.id, operation: "delete" },
+      });
     }
 
     if (!isGoalOwner(goal, userId)) {
       return createErrorResponse(
-        'GOAL_FORBIDDEN',
-        'Only the owner can delete this goal.',
+        "GOAL_FORBIDDEN",
+        "Only the owner can delete this goal.",
         403,
         {
-          hint: 'Ask the owner to remove it for you.',
-          logLevel: 'warn',
-          context: { goalId: params.id, operation: 'delete' },
-        }
+          hint: "Ask the owner to remove it for you.",
+          logLevel: "warn",
+          context: { goalId: params.id, operation: "delete" },
+        },
       );
     }
 
@@ -246,14 +230,14 @@ export async function DELETE(
     }
 
     return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'We could not delete that goal right now.',
+      "GOAL_INTERNAL_ERROR",
+      "We could not delete that goal right now.",
       500,
       {
-        hint: 'Please try again shortly.',
+        hint: "Please try again shortly.",
         error,
-        context: { goalId: params.id, operation: 'delete' },
-      }
+        context: { goalId: params.id, operation: "delete" },
+      },
     );
   }
 }

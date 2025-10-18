@@ -1,21 +1,20 @@
-import mongoose, { HydratedDocument, Model, Schema, Types } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
+import type { HydratedDocument, Model, Types } from "mongoose";
 
-import type { UserId } from './user';
-
-export type GoalCompounding = 'monthly' | 'yearly';
-export type ContributionFrequency = 'monthly' | 'yearly';
-export type CurrencyCode = 'INR' | (string & {});
-export type GoalMemberRole = 'owner' | 'collaborator';
+export type GoalCompounding = "monthly" | "yearly";
+export type ContributionFrequency = "monthly" | "yearly";
+export type CurrencyCode = string;
+export type GoalMemberRole = "owner" | "collaborator";
 
 export interface GoalMember {
-  userId: Types.ObjectId | UserId;
+  userId: Types.ObjectId;
   role: GoalMemberRole;
   splitPercent?: number;
   fixedAmount?: number;
 }
 
 export interface Goal {
-  ownerId: Types.ObjectId | UserId;
+  ownerId: Types.ObjectId;
   title: string;
   targetAmount: number;
   currency: CurrencyCode;
@@ -36,13 +35,13 @@ const goalMemberSchema = new Schema<GoalMember>(
   {
     userId: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     role: {
       type: String,
       required: true,
-      enum: ['owner', 'collaborator'],
+      enum: ["owner", "collaborator"],
     },
     splitPercent: {
       type: Number,
@@ -54,14 +53,14 @@ const goalMemberSchema = new Schema<GoalMember>(
       min: 0,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const goalSchema = new Schema<Goal>(
   {
     ownerId: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true,
     },
@@ -93,12 +92,12 @@ const goalSchema = new Schema<Goal>(
     compounding: {
       type: String,
       required: true,
-      enum: ['monthly', 'yearly'],
+      enum: ["monthly", "yearly"],
     },
     contributionFrequency: {
       type: String,
       required: true,
-      enum: ['monthly', 'yearly'],
+      enum: ["monthly", "yearly"],
     },
     existingSavings: {
       type: Number,
@@ -116,15 +115,15 @@ const goalSchema = new Schema<Goal>(
       default: [],
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 goalSchema.index({ ownerId: 1, targetDate: 1 });
-goalSchema.index({ 'members.userId': 1 });
+goalSchema.index({ "members.userId": 1 });
 
 export const GoalModel: GoalModel =
-  (mongoose.models.Goal as GoalModel) || mongoose.model<Goal>('Goal', goalSchema);
+  (mongoose.models.Goal as GoalModel) || mongoose.model<Goal>("Goal", goalSchema);
 
-export type GoalId = GoalDoc['_id'];
+export type GoalId = GoalDoc["_id"];
 
 export default GoalModel;

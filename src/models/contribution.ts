@@ -1,11 +1,9 @@
-import mongoose, { HydratedDocument, Model, Schema, Types } from 'mongoose';
-
-import type { GoalId } from './goal';
-import type { UserId } from './user';
+import mongoose, { Schema } from "mongoose";
+import type { HydratedDocument, Model, Types } from "mongoose";
 
 export interface Contribution {
-  goalId: Types.ObjectId | GoalId;
-  userId: Types.ObjectId | UserId;
+  goalId: Types.ObjectId;
+  userId: Types.ObjectId;
   amount: number;
   period: Date;
 }
@@ -18,13 +16,13 @@ const contributionSchema = new Schema<Contribution>(
   {
     goalId: {
       type: Schema.Types.ObjectId,
-      ref: 'Goal',
+      ref: "Goal",
       required: true,
       index: true,
     },
     userId: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true,
     },
@@ -39,13 +37,13 @@ const contributionSchema = new Schema<Contribution>(
       index: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 contributionSchema.index({ goalId: 1, userId: 1, period: 1 }, { unique: true });
 
 export const ContributionModel: ContributionModel =
   (mongoose.models.Contribution as ContributionModel) ||
-  mongoose.model<Contribution>('Contribution', contributionSchema);
+  mongoose.model<Contribution>("Contribution", contributionSchema);
 
 export default ContributionModel;

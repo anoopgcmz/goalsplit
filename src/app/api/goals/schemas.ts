@@ -1,18 +1,17 @@
-import { z } from 'zod';
-
+import { z } from "zod";
 
 export const GoalApiErrorCodeSchema = z.enum([
-  'GOAL_UNAUTHORIZED',
-  'GOAL_FORBIDDEN',
-  'GOAL_NOT_FOUND',
-  'GOAL_VALIDATION_ERROR',
-  'GOAL_CONFLICT',
-  'GOAL_INTERNAL_ERROR',
+  "GOAL_UNAUTHORIZED",
+  "GOAL_FORBIDDEN",
+  "GOAL_NOT_FOUND",
+  "GOAL_VALIDATION_ERROR",
+  "GOAL_CONFLICT",
+  "GOAL_INTERNAL_ERROR",
 ]);
 
 export type GoalApiErrorCode = z.infer<typeof GoalApiErrorCodeSchema>;
 
-export const GoalMemberRoleSchema = z.enum(['owner', 'collaborator']);
+export const GoalMemberRoleSchema = z.enum(["owner", "collaborator"]);
 
 export const GoalMemberResponseSchema = z.object({
   userId: z.string(),
@@ -33,8 +32,8 @@ export const GoalPlanResponseSchema = z.object({
     targetAmount: z.number(),
     targetDate: z.string(),
     expectedRate: z.number(),
-    compounding: z.enum(['monthly', 'yearly']),
-    contributionFrequency: z.enum(['monthly', 'yearly']),
+    compounding: z.enum(["monthly", "yearly"]),
+    contributionFrequency: z.enum(["monthly", "yearly"]),
     existingSavings: z.number(),
     isShared: z.boolean(),
   }),
@@ -51,8 +50,8 @@ export const GoalPlanResponseSchema = z.object({
   members: z.array(GoalPlanMemberSchema),
   assumptions: z.object({
     expectedRate: z.number(),
-    compounding: z.enum(['monthly', 'yearly']),
-    contributionFrequency: z.enum(['monthly', 'yearly']),
+    compounding: z.enum(["monthly", "yearly"]),
+    contributionFrequency: z.enum(["monthly", "yearly"]),
   }),
   warnings: z.array(z.string()).optional(),
 });
@@ -65,8 +64,8 @@ export const GoalResponseSchema = z.object({
   currency: z.string(),
   targetDate: z.string(),
   expectedRate: z.number(),
-  compounding: z.enum(['monthly', 'yearly']),
-  contributionFrequency: z.enum(['monthly', 'yearly']),
+  compounding: z.enum(["monthly", "yearly"]),
+  contributionFrequency: z.enum(["monthly", "yearly"]),
   existingSavings: z.number().min(0).optional(),
   isShared: z.boolean(),
   members: z.array(GoalMemberResponseSchema),
@@ -84,16 +83,16 @@ export const GoalListResponseSchema = z.object({
     totalPages: z.number().min(0),
   }),
   sort: z.object({
-    by: z.enum(['createdAt', 'targetDate', 'title']),
-    order: z.enum(['asc', 'desc']),
+    by: z.enum(["createdAt", "targetDate", "title"]),
+    order: z.enum(["asc", "desc"]),
   }),
 });
 
 export const GoalListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  sortBy: z.enum(['createdAt', 'targetDate', 'title']).default('createdAt'),
-  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  sortBy: z.enum(["createdAt", "targetDate", "title"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
 const GoalDetailsSchema = z.object({
@@ -107,21 +106,21 @@ const GoalDetailsSchema = z.object({
     .transform((value) => value.toUpperCase()),
   targetDate: z.coerce.date(),
   expectedRate: z.coerce.number().finite().min(0),
-  compounding: z.enum(['monthly', 'yearly']),
-  contributionFrequency: z.enum(['monthly', 'yearly']),
+  compounding: z.enum(["monthly", "yearly"]),
+  contributionFrequency: z.enum(["monthly", "yearly"]),
   existingSavings: z.coerce.number().finite().min(0).optional(),
 });
 
-const enforceGoalBusinessRules = (
-  value: Partial<z.infer<typeof GoalDetailsSchema>>,
-  ctx: z.RefinementCtx
-) => {
-  if ('targetAmount' in value && typeof value.targetAmount === 'number') {
+type GoalDetails = z.infer<typeof GoalDetailsSchema>;
+type GoalDetailsPartial = Partial<GoalDetails>;
+
+const enforceGoalBusinessRules = (value: GoalDetailsPartial, ctx: z.RefinementCtx) => {
+  if ("targetAmount" in value && typeof value.targetAmount === "number") {
     if (value.targetAmount <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Set a target amount greater than zero to plan your savings.',
-        path: ['targetAmount'],
+        message: "Set a target amount greater than zero to plan your savings.",
+        path: ["targetAmount"],
       });
     }
   }
@@ -130,23 +129,25 @@ const enforceGoalBusinessRules = (
     if (value.targetDate.getTime() <= Date.now()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Choose a future target date so we can map each step for you.',
-        path: ['targetDate'],
+        message: "Choose a future target date so we can map each step for you.",
+        path: ["targetDate"],
       });
     }
   }
 };
 
-export const CreateGoalInputSchema = GoalDetailsSchema.superRefine(
-  (value, ctx) => enforceGoalBusinessRules(value, ctx)
+export const CreateGoalInputSchema = GoalDetailsSchema.superRefine((value, ctx) =>
+  enforceGoalBusinessRules(value, ctx),
 );
 
 export const UpdateGoalInputSchema = GoalDetailsSchema.partial()
   .refine((value) => Object.keys(value).length > 0, {
-    message: 'At least one field must be supplied',
+    message: "At least one field must be supplied",
     path: [],
   })
-  .superRefine((value, ctx) => enforceGoalBusinessRules(value, ctx));
+  .superRefine((value, ctx) =>
+    enforceGoalBusinessRules(value as GoalDetailsPartial, ctx),
+  );
 
 export type CreateGoalInput = z.infer<typeof CreateGoalInputSchema>;
 export type UpdateGoalInput = z.infer<typeof UpdateGoalInputSchema>;

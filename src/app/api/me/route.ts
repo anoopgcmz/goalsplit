@@ -1,15 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ZodError } from 'zod';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
-import { dbConnect } from '@/lib/mongo';
-import UserModel from '@/models/user';
+import { dbConnect } from "@/lib/mongo";
+import UserModel from "@/models/user";
 
-import { VerifyOtpResponseSchema } from '../auth/schemas';
+import { VerifyOtpResponseSchema } from "../auth/schemas";
 import {
   createAuthErrorResponse,
   handleAuthZodError,
   requireSessionUserId,
-} from '../auth/utils';
+} from "../auth/utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,14 +25,14 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return createAuthErrorResponse(
-        'AUTH_UNAUTHORIZED',
-        'We could not find your account. Please sign in again.',
+        "AUTH_UNAUTHORIZED",
+        "We could not find your account. Please sign in again.",
         401,
         {
-          hint: 'Request a fresh sign-in code to continue.',
-          logLevel: 'warn',
-          context: { userId: userIdOrResponse.toString(), operation: 'me' },
-        }
+          hint: "Request a fresh sign-in code to continue.",
+          logLevel: "warn",
+          context: { userId: userIdOrResponse.toString(), operation: "me" },
+        },
       );
     }
 
@@ -50,14 +51,14 @@ export async function GET(request: NextRequest) {
     }
 
     return createAuthErrorResponse(
-      'AUTH_INTERNAL_ERROR',
-      'We could not load your account details right now.',
+      "AUTH_INTERNAL_ERROR",
+      "We could not load your account details right now.",
       500,
       {
-        hint: 'Please refresh in a moment.',
+        hint: "Please refresh in a moment.",
         error,
-        context: { operation: 'me' },
-      }
+        context: { operation: "me" },
+      },
     );
   }
 }
