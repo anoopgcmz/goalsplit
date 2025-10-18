@@ -1,47 +1,47 @@
-const STORAGE_KEY = 'goalsplit.analytics.consent';
-const SENSITIVE_KEYS = new Set([
-  'email',
-  'e-mail',
-  'phone',
-  'telephone',
-  'name',
-  'full_name',
-  'full-name',
-  'address',
-  'token',
-  'session',
-  'password',
+const STORAGE_KEY = "goalsplit.analytics.consent";
+const SENSITIVE_KEYS = new Set<string>([
+  "email",
+  "e-mail",
+  "phone",
+  "telephone",
+  "name",
+  "full_name",
+  "full-name",
+  "address",
+  "token",
+  "session",
+  "password",
 ]);
 
 type AnalyticsPrimitive = string | number | boolean | null;
 
-type AnalyticsEventPayload = {
+interface AnalyticsEventPayload {
   event: string;
   timestamp: string;
   properties: Record<string, AnalyticsPrimitive>;
-};
+}
 
 type ConsentListener = (consent: boolean) => void;
 
-const isBrowser = () => typeof window !== 'undefined';
+const isBrowser = () => typeof window !== "undefined";
 
 const redactValue = (key: string, value: unknown): AnalyticsPrimitive => {
-  if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+  if (value === null || typeof value === "boolean" || typeof value === "number") {
     return value;
   }
 
-  if (typeof value !== 'string') {
+  if (typeof value !== "string") {
     return null;
   }
 
   const lowerKey = key.toLowerCase();
   if (SENSITIVE_KEYS.has(lowerKey)) {
-    return '[redacted]';
+    return "[redacted]";
   }
 
   const emailLike = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
   if (emailLike.test(value)) {
-    return '[redacted]';
+    return "[redacted]";
   }
 
   return value.slice(0, 256);
@@ -72,7 +72,7 @@ class AnalyticsService {
   private consentLoaded = false;
   private buffer: AnalyticsEventPayload[] = [];
   private readonly bufferLimit = 100;
-  private listeners: Set<ConsentListener> = new Set();
+  private listeners: Set<ConsentListener> = new Set<ConsentListener>();
   private unloadRegistered = false;
 
   private loadConsent(): void {
@@ -83,10 +83,10 @@ class AnalyticsService {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored !== null) {
-        this.consent = stored === 'true';
+        this.consent = stored === "true";
       }
     } catch (error) {
-      console.warn('Failed to read analytics consent flag', error);
+      console.warn("Failed to read analytics consent flag", error);
     }
 
     this.consentLoaded = true;
@@ -98,9 +98,9 @@ class AnalyticsService {
     }
 
     try {
-      window.localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');
+      window.localStorage.setItem(STORAGE_KEY, value ? "true" : "false");
     } catch (error) {
-      console.warn('Failed to persist analytics consent flag', error);
+      console.warn("Failed to persist analytics consent flag", error);
     }
   }
 
@@ -132,11 +132,11 @@ class AnalyticsService {
       const payload = JSON.stringify({ events });
 
       if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/analytics', payload);
+        navigator.sendBeacon("/api/analytics", payload);
       } else {
-        void fetch('/api/analytics', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        void fetch("/api/analytics", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: payload,
           keepalive: true,
         }).catch(() => {
@@ -145,12 +145,12 @@ class AnalyticsService {
       }
     };
 
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
+    window.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
         flushBeforeUnload();
       }
     });
-    window.addEventListener('pagehide', flushBeforeUnload);
+    window.addEventListener("pagehide", flushBeforeUnload);
     this.unloadRegistered = true;
   }
 
@@ -164,9 +164,9 @@ class AnalyticsService {
     }
 
     try {
-      const response = await fetch('/api/analytics', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ events }),
         keepalive: true,
       });
@@ -175,7 +175,7 @@ class AnalyticsService {
         throw new Error(`Analytics request failed with status ${response.status}`);
       }
     } catch (error) {
-      console.warn('Failed to deliver analytics events', error);
+      console.warn("Failed to deliver analytics events", error);
       this.buffer = events.concat(this.buffer).slice(-this.bufferLimit);
     }
   }

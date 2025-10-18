@@ -1,12 +1,12 @@
-import { randomBytes } from 'crypto';
+import { randomBytes } from "crypto";
 
-import { NextRequest, NextResponse } from 'next/server';
-import { Types } from 'mongoose';
-import { ZodError, z } from 'zod';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { ZodError, z } from "zod";
 
-import { dbConnect } from '@/lib/mongo';
-import GoalModel from '@/models/goal';
-import InviteModel from '@/models/invite';
+import { dbConnect } from "@/lib/mongo";
+import GoalModel from "@/models/goal";
+import InviteModel from "@/models/invite";
 
 import {
   createErrorResponse,
@@ -15,7 +15,7 @@ import {
   objectIdToString,
   parseObjectId,
   requireUserId,
-} from '../../utils';
+} from "../../utils";
 
 const CreateInviteInputSchema = z
   .object({
@@ -34,10 +34,7 @@ const CreateInviteInputSchema = z
     fixedAmount: value.fixedAmount ?? null,
   }));
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
 
@@ -51,25 +48,23 @@ export async function POST(
     const goal = await GoalModel.findById(goalId);
 
     if (!goal) {
-      return createErrorResponse('GOAL_NOT_FOUND', 'Goal not found', 404);
+      return createErrorResponse("GOAL_NOT_FOUND", "Goal not found", 404);
     }
 
-    const isOwner =
-      objectIdToString(goal.ownerId as Types.ObjectId | string) ===
-      objectIdToString(userId);
+    const isOwner = objectIdToString(goal.ownerId) === objectIdToString(userId);
 
     if (!isOwner) {
       return createErrorResponse(
-        'GOAL_FORBIDDEN',
-        'Only the owner may invite collaborators',
-        403
+        "GOAL_FORBIDDEN",
+        "Only the owner may invite collaborators",
+        403,
       );
     }
 
-    const rawBody = await request.json();
+    const rawBody: unknown = await request.json();
     const parsedBody = CreateInviteInputSchema.parse(rawBody);
 
-    const token = randomBytes(32).toString('hex');
+    const token = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + parsedBody.expiresInMinutes * 60_000);
 
     await InviteModel.deleteOne({ goalId, email: parsedBody.email });
@@ -86,28 +81,19 @@ export async function POST(
 
     const inviteUrl = new URL(
       `/shared/accept?token=${encodeURIComponent(token)}`,
-      request.nextUrl.origin
+      request.nextUrl.origin,
     ).toString();
 
     return NextResponse.json({ inviteUrl }, { status: 201 });
   } catch (error) {
     if (error instanceof SyntaxError) {
-      return createErrorResponse(
-        'GOAL_VALIDATION_ERROR',
-        'Invalid JSON payload',
-        400
-      );
+      return createErrorResponse("GOAL_VALIDATION_ERROR", "Invalid JSON payload", 400);
     }
 
     if (error instanceof ZodError) {
       return handleZodError(error);
     }
 
-    return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'Unable to create invitation',
-      500
-    );
+    return createErrorResponse("GOAL_INTERNAL_ERROR", "Unable to create invitation", 500);
   }
 }
-

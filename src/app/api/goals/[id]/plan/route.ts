@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ZodError } from 'zod';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
 import {
   netTargetAfterExisting,
   requiredLumpSumForFutureValue,
   requiredPaymentForFutureValue,
   yearFractionFromDates,
-} from '@/lib/financial';
-import { dbConnect } from '@/lib/mongo';
-import GoalModel from '@/models/goal';
+} from "@/lib/financial";
+import { dbConnect } from "@/lib/mongo";
+import GoalModel from "@/models/goal";
 
-import { GoalPlanResponseSchema, type GoalPlanResponse } from '../../schemas';
+import { GoalPlanResponseSchema, type GoalPlanResponse } from "../../schemas";
 import {
   createErrorResponse,
   handleZodError,
@@ -19,17 +20,14 @@ import {
   parseObjectId,
   requireUserId,
   serializeGoal,
-} from '../../utils';
+} from "../../utils";
 
-const contributionFrequencyToNPerYear = (frequency: 'monthly' | 'yearly'): 1 | 12 =>
-  frequency === 'monthly' ? 12 : 1;
+const contributionFrequencyToNPerYear = (frequency: "monthly" | "yearly"): 1 | 12 =>
+  frequency === "monthly" ? 12 : 1;
 
 const EPSILON = 1e-6;
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
 
@@ -43,21 +41,16 @@ export async function GET(
     const goalDoc = await GoalModel.findById(goalId);
 
     if (!goalDoc) {
-      return createErrorResponse(
-        'GOAL_NOT_FOUND',
-        'We could not find that goal.',
-        404,
-        {
-          hint: 'It may have been removed.',
-          logLevel: 'info',
-          context: { goalId: params.id, operation: 'plan' },
-        }
-      );
+      return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
+        hint: "It may have been removed.",
+        logLevel: "info",
+        context: { goalId: params.id, operation: "plan" },
+      });
     }
 
     const serialized = serializeGoal(goalDoc);
 
-    const members: GoalPlanResponse['members'] = serialized.members.map((member) => ({
+    const members: GoalPlanResponse["members"] = serialized.members.map((member) => ({
       userId: member.userId,
       role: member.role,
       splitPercent: member.splitPercent,
@@ -65,7 +58,7 @@ export async function GET(
       perPeriod: 0,
     }));
 
-    const goalForResponse: GoalPlanResponse['goal'] = {
+    const goalForResponse: GoalPlanResponse["goal"] = {
       id: serialized.id,
       title: serialized.title,
       currency: serialized.currency,
@@ -80,18 +73,20 @@ export async function GET(
 
     const normalizedUserId = objectIdToString(userId);
     const isOwner = serialized.ownerId === normalizedUserId;
-    const isMember = serialized.members.some((member) => member.userId === normalizedUserId);
+    const isMember = serialized.members.some(
+      (member) => member.userId === normalizedUserId,
+    );
 
     if (!isOwner && !isMember) {
       return createErrorResponse(
-        'GOAL_FORBIDDEN',
-        'This goal belongs to someone else.',
+        "GOAL_FORBIDDEN",
+        "This goal belongs to someone else.",
         403,
         {
-          hint: 'Ask the owner to share access with you.',
-          logLevel: 'warn',
-          context: { goalId: params.id, operation: 'plan' },
-        }
+          hint: "Ask the owner to share access with you.",
+          logLevel: "warn",
+          context: { goalId: params.id, operation: "plan" },
+        },
       );
     }
 
@@ -102,7 +97,7 @@ export async function GET(
 
     const compoundingNPerYear = contributionFrequencyToNPerYear(serialized.compounding);
     const contributionNPerYear = contributionFrequencyToNPerYear(
-      serialized.contributionFrequency
+      serialized.contributionFrequency,
     );
 
     const netFutureValue = netTargetAfterExisting(
@@ -110,37 +105,39 @@ export async function GET(
       serialized.existingSavings ?? 0,
       serialized.expectedRate,
       compoundingNPerYear,
-      tYears
+      tYears,
     );
 
     const totalPerPeriod = requiredPaymentForFutureValue(
       netFutureValue,
       serialized.expectedRate,
       contributionNPerYear,
-      tYears
+      tYears,
     );
 
     const lumpSumNow = requiredLumpSumForFutureValue(
       netFutureValue,
       serialized.expectedRate,
       compoundingNPerYear,
-      tYears
+      tYears,
     );
 
     const warnings: string[] = [];
 
     if (rawYears <= 0) {
       warnings.push(
-        'Target date is in the past or today; recurring contributions may not be feasible.'
+        "Target date is in the past or today; recurring contributions may not be feasible.",
       );
     }
 
     if (!Number.isFinite(totalPerPeriod)) {
-      warnings.push('No contribution periods remain; recurring contribution amount is undefined.');
+      warnings.push(
+        "No contribution periods remain; recurring contribution amount is undefined.",
+      );
     }
 
     const fixedTotal = members.reduce((sum, member) => {
-      if (typeof member.fixedAmount === 'number') {
+      if (typeof member.fixedAmount === "number") {
         member.perPeriod = member.fixedAmount;
         return sum + member.fixedAmount;
       }
@@ -152,7 +149,9 @@ export async function GET(
     let remaining = totalPerPeriod - fixedTotal;
 
     if (Number.isFinite(totalPerPeriod) && remaining < -EPSILON) {
-      warnings.push('Fixed contributions exceed the required per-period amount; review splits.');
+      warnings.push(
+        "Fixed contributions exceed the required per-period amount; review splits.",
+      );
       remaining = 0;
     }
 
@@ -164,11 +163,13 @@ export async function GET(
     if (percentageEligible.length > 0) {
       if (percentSum <= EPSILON) {
         if (Number.isFinite(remaining) ? remaining > EPSILON : true) {
-          warnings.push('Percentage allocations are missing; unable to distribute contributions.');
+          warnings.push(
+            "Percentage allocations are missing; unable to distribute contributions.",
+          );
         }
       } else {
         if (Math.abs(percentSum - 100) > 0.5) {
-          warnings.push('Split percentages do not sum to 100%; allocations normalised.');
+          warnings.push("Split percentages do not sum to 100%; allocations normalised.");
         }
 
         percentageEligible.forEach((member) => {
@@ -177,7 +178,9 @@ export async function GET(
         });
       }
     } else if (Number.isFinite(remaining) ? remaining > EPSILON : true) {
-      warnings.push('No members available to receive the remaining contribution requirement.');
+      warnings.push(
+        "No members available to receive the remaining contribution requirement.",
+      );
     }
 
     const contributionMonths = tYears * 12;
@@ -222,14 +225,14 @@ export async function GET(
     }
 
     return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'We could not build that plan right now.',
+      "GOAL_INTERNAL_ERROR",
+      "We could not build that plan right now.",
       500,
       {
-        hint: 'Please try again shortly.',
+        hint: "Please try again shortly.",
         error,
-        context: { goalId: params.id, operation: 'plan' },
-      }
+        context: { goalId: params.id, operation: "plan" },
+      },
     );
   }
 }

@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Types, type FilterQuery } from 'mongoose';
-import { ZodError } from 'zod';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { Types, type FilterQuery } from "mongoose";
+import { ZodError } from "zod";
 
-import { dbConnect } from '@/lib/mongo';
-import ContributionModel from '@/models/contribution';
-import type { Contribution } from '@/models/contribution';
+import { dbConnect } from "@/lib/mongo";
+import ContributionModel from "@/models/contribution";
+import type { Contribution } from "@/models/contribution";
 
 import {
   ContributionListResponseSchema,
   UpsertContributionInputSchema,
   normalizePeriod,
-} from './schemas';
+} from "./schemas";
 import {
   createErrorResponse,
   handleZodError,
@@ -18,7 +19,7 @@ import {
   parseContributionListQuery,
   requireUserId,
   serializeContribution,
-} from './utils';
+} from "./utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,9 +49,7 @@ export async function GET(request: NextRequest) {
       .sort({ period: -1 })
       .lean();
 
-    const data = contributions.map((contribution) =>
-      serializeContribution(contribution)
-    );
+    const data = contributions.map((contribution) => serializeContribution(contribution));
 
     const payload = ContributionListResponseSchema.parse({ data });
 
@@ -61,14 +60,14 @@ export async function GET(request: NextRequest) {
     }
 
     return createErrorResponse(
-      'CONTRIBUTION_INTERNAL_ERROR',
-      'We had trouble loading your contributions just now.',
+      "CONTRIBUTION_INTERNAL_ERROR",
+      "We had trouble loading your contributions just now.",
       500,
       {
-        hint: 'Please refresh in a moment while we reconnect.',
+        hint: "Please refresh in a moment while we reconnect.",
         error,
-        context: { operation: 'list' },
-      }
+        context: { operation: "list" },
+      },
     );
   }
 }
@@ -83,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
     const userId = userIdOrResponse;
 
-    const body = await request.json();
+    const body: unknown = await request.json();
     const parsedBody = UpsertContributionInputSchema.parse(body);
 
     const goalId = new Types.ObjectId(parsedBody.goalId);
@@ -105,18 +104,18 @@ export async function POST(request: NextRequest) {
         new: true,
         upsert: true,
         runValidators: true,
-      }
+      },
     );
 
     if (!contribution) {
       return createErrorResponse(
-        'CONTRIBUTION_INTERNAL_ERROR',
-        'We could not save that contribution right now.',
+        "CONTRIBUTION_INTERNAL_ERROR",
+        "We could not save that contribution right now.",
         500,
         {
-          hint: 'Please try again shortly.',
-          context: { operation: 'upsert' },
-        }
+          hint: "Please try again shortly.",
+          context: { operation: "upsert" },
+        },
       );
     }
 
@@ -124,13 +123,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createErrorResponse(
-        'CONTRIBUTION_VALIDATION_ERROR',
-        'We could not read that request. Please check the data and try again.',
+        "CONTRIBUTION_VALIDATION_ERROR",
+        "We could not read that request. Please check the data and try again.",
         400,
         {
-          hint: 'Make sure you are sending valid JSON.',
-          logLevel: 'warn',
-        }
+          hint: "Make sure you are sending valid JSON.",
+          logLevel: "warn",
+        },
       );
     }
 
@@ -139,14 +138,14 @@ export async function POST(request: NextRequest) {
     }
 
     return createErrorResponse(
-      'CONTRIBUTION_INTERNAL_ERROR',
-      'We could not save that contribution right now.',
+      "CONTRIBUTION_INTERNAL_ERROR",
+      "We could not save that contribution right now.",
       500,
       {
-        hint: 'Please try again shortly.',
+        hint: "Please try again shortly.",
         error,
-        context: { operation: 'upsert' },
-      }
+        context: { operation: "upsert" },
+      },
     );
   }
 }

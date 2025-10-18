@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ZodError } from 'zod';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
-import { dbConnect } from '@/lib/mongo';
-import GoalModel from '@/models/goal';
+import { dbConnect } from "@/lib/mongo";
+import GoalModel from "@/models/goal";
 
-import { CreateGoalInputSchema, GoalListResponseSchema } from './schemas';
+import { CreateGoalInputSchema, GoalListResponseSchema } from "./schemas";
 import {
   createErrorResponse,
   handleZodError,
@@ -12,7 +13,7 @@ import {
   parseGoalListQuery,
   requireUserId,
   serializeGoal,
-} from './utils';
+} from "./utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,11 +28,11 @@ export async function GET(request: NextRequest) {
     const query = parseGoalListQuery(request);
 
     const filter = {
-      $or: [{ ownerId: userId }, { 'members.userId': userId }],
+      $or: [{ ownerId: userId }, { "members.userId": userId }],
     };
 
     const sort: Record<string, 1 | -1> = {
-      [query.sortBy]: query.sortOrder === 'asc' ? 1 : -1,
+      [query.sortBy]: query.sortOrder === "asc" ? 1 : -1,
     };
 
     const [goals, totalItems] = await Promise.all([
@@ -66,14 +67,14 @@ export async function GET(request: NextRequest) {
     }
 
     return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'We had trouble loading your goals just now.',
+      "GOAL_INTERNAL_ERROR",
+      "We had trouble loading your goals just now.",
       500,
       {
-        hint: 'Please refresh in a few moments while we reconnect.',
+        hint: "Please refresh in a few moments while we reconnect.",
         error,
-        context: { operation: 'list' },
-      }
+        context: { operation: "list" },
+      },
     );
   }
 }
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
     const userId = userIdOrResponse;
 
-    const body = await request.json();
+    const body: unknown = await request.json();
     const parsedBody = CreateGoalInputSchema.parse(body);
 
     const goal = await GoalModel.create({
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
       members: [
         {
           userId,
-          role: 'owner',
+          role: "owner",
           splitPercent: 100,
         },
       ],
@@ -115,13 +116,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createErrorResponse(
-        'GOAL_VALIDATION_ERROR',
-        'We could not read that request. Please check the data and try again.',
+        "GOAL_VALIDATION_ERROR",
+        "We could not read that request. Please check the data and try again.",
         400,
         {
-          hint: 'Ensure you are sending valid JSON.',
-          logLevel: 'warn',
-        }
+          hint: "Ensure you are sending valid JSON.",
+          logLevel: "warn",
+        },
       );
     }
 
@@ -130,14 +131,14 @@ export async function POST(request: NextRequest) {
     }
 
     return createErrorResponse(
-      'GOAL_INTERNAL_ERROR',
-      'We could not create that goal right now.',
+      "GOAL_INTERNAL_ERROR",
+      "We could not create that goal right now.",
       500,
       {
-        hint: 'Please try again in a moment.',
+        hint: "Please try again in a moment.",
         error,
-        context: { operation: 'create' },
-      }
+        context: { operation: "create" },
+      },
     );
   }
 }

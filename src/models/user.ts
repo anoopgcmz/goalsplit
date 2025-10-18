@@ -1,4 +1,5 @@
-import mongoose, { HydratedDocument, Model, Schema } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
+import type { HydratedDocument, Model } from "mongoose";
 
 export interface User {
   email: string;
@@ -24,12 +25,12 @@ const userSchema = new Schema<User>(
       trim: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const UserModel: UserModel =
-  (mongoose.models.User as UserModel) || mongoose.model<User>('User', userSchema);
+  (mongoose.models.User as UserModel) || mongoose.model<User>("User", userSchema);
 
-export type UserId = UserDoc['_id'];
+export type UserId = UserDoc["_id"];
 
 export default UserModel;
