@@ -7,6 +7,7 @@ import ContributionModel from '@/models/contribution';
 import type { Contribution } from '@/models/contribution';
 
 import {
+  ContributionListResponseSchema,
   UpsertContributionInputSchema,
   normalizePeriod,
 } from './schemas';
@@ -51,7 +52,9 @@ export async function GET(request: NextRequest) {
       serializeContribution(contribution)
     );
 
-    return NextResponse.json({ data });
+    const payload = ContributionListResponseSchema.parse({ data });
+
+    return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof ZodError) {
       return handleZodError(error);
@@ -59,8 +62,13 @@ export async function GET(request: NextRequest) {
 
     return createErrorResponse(
       'CONTRIBUTION_INTERNAL_ERROR',
-      'Unable to fetch contributions',
-      500
+      'We had trouble loading your contributions just now.',
+      500,
+      {
+        hint: 'Please refresh in a moment while we reconnect.',
+        error,
+        context: { operation: 'list' },
+      }
     );
   }
 }
@@ -103,8 +111,12 @@ export async function POST(request: NextRequest) {
     if (!contribution) {
       return createErrorResponse(
         'CONTRIBUTION_INTERNAL_ERROR',
-        'Unable to save contribution',
-        500
+        'We could not save that contribution right now.',
+        500,
+        {
+          hint: 'Please try again shortly.',
+          context: { operation: 'upsert' },
+        }
       );
     }
 
@@ -113,8 +125,12 @@ export async function POST(request: NextRequest) {
     if (error instanceof SyntaxError) {
       return createErrorResponse(
         'CONTRIBUTION_VALIDATION_ERROR',
-        'Invalid JSON payload',
-        400
+        'We could not read that request. Please check the data and try again.',
+        400,
+        {
+          hint: 'Make sure you are sending valid JSON.',
+          logLevel: 'warn',
+        }
       );
     }
 
@@ -124,8 +140,13 @@ export async function POST(request: NextRequest) {
 
     return createErrorResponse(
       'CONTRIBUTION_INTERNAL_ERROR',
-      'Unable to save contribution',
-      500
+      'We could not save that contribution right now.',
+      500,
+      {
+        hint: 'Please try again shortly.',
+        error,
+        context: { operation: 'upsert' },
+      }
     );
   }
 }
