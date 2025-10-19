@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:dummy": "ts-node --project tsconfig.json scripts/seedDummyUsers.ts"
+    "seed:dummy": "node --loader ./scripts/ts-loader.mjs scripts/seedDummyUsers.ts"
   },
   "dependencies": {
     "mongoose": "^8.6.0",
