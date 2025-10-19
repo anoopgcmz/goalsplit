@@ -51,11 +51,47 @@ const resolveAlias = async (specifier) => {
   return null;
 };
 
+const resolveRelative = async (specifier, parentURL) => {
+  if (
+    !specifier.startsWith("./") &&
+    !specifier.startsWith("../") &&
+    specifier !== "." &&
+    specifier !== ".."
+  ) {
+    return null;
+  }
+
+  const parentPath = fileURLToPath(parentURL);
+  const parentDir = path.dirname(parentPath);
+  const basePath = path.resolve(parentDir, specifier);
+
+  if (await fileExists(basePath)) {
+    return pathToFileURL(basePath).href;
+  }
+
+  for (const suffix of candidateSuffixes) {
+    const candidate = `${basePath}${suffix}`;
+    if (await fileExists(candidate)) {
+      return pathToFileURL(candidate).href;
+    }
+  }
+
+  return null;
+};
+
 export async function resolve(specifier, context, defaultResolve) {
   const aliasResolution = await resolveAlias(specifier);
   if (aliasResolution) {
     return {
       url: aliasResolution,
+      shortCircuit: true,
+    };
+  }
+
+  const relativeResolution = await resolveRelative(specifier, context.parentURL);
+  if (relativeResolution) {
+    return {
+      url: relativeResolution,
       shortCircuit: true,
     };
   }
