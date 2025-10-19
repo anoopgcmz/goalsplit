@@ -43,6 +43,20 @@ const envObjectSchema = z.object({
 
 type EnvShape = z.infer<typeof envObjectSchema>;
 
+const baseDefaults: Partial<Record<keyof EnvShape, string>> = {
+  MONGODB_URI: 'mongodb://localhost:27017/goalsplit',
+  MONGODB_DB: 'goalsplit',
+  JWT_SECRET: 'dev-secret-example-key-that-is-32-characters',
+  EMAIL_FROM: 'dev@example.com',
+};
+
+const smtpDefaults: Partial<Record<keyof EnvShape, string>> = {
+  SMTP_HOST: 'localhost',
+  SMTP_PORT: '1025',
+  SMTP_USER: 'smtp-user',
+  SMTP_PASS: 'smtp-pass',
+};
+
 const ensureEmailProvider = (env: EnvShape, ctx: RefinementCtx): void => {
   const hasResend = typeof env.RESEND_API_KEY === 'string' && env.RESEND_API_KEY.trim().length > 0;
   const missingSmtpKeys = smtpEnvKeys.filter((key) => {
@@ -151,7 +165,34 @@ const buildConfig = (env: EnvShape): AppConfig => {
 };
 
 export const loadConfig = (rawEnv: RawEnv = process.env): AppConfig => {
-  const result = envSchema.safeParse(rawEnv);
+  const nodeEnv = rawEnv.NODE_ENV ?? process.env.NODE_ENV ?? 'development';
+  const shouldApplyDefaults = nodeEnv !== 'production';
+
+  const envForParsing: Record<string, string> = {};
+
+  if (shouldApplyDefaults) {
+    Object.assign(envForParsing, baseDefaults);
+
+    const hasEmailConfig =
+      typeof rawEnv.RESEND_API_KEY === 'string' && rawEnv.RESEND_API_KEY.trim().length > 0
+        ? true
+        : smtpEnvKeys.some((key) => {
+            const value = rawEnv[key];
+            return typeof value === 'string' && value.trim().length > 0;
+          });
+
+    if (!hasEmailConfig) {
+      Object.assign(envForParsing, smtpDefaults);
+    }
+  }
+
+  for (const [key, value] of Object.entries(rawEnv)) {
+    if (value !== undefined) {
+      envForParsing[key] = value;
+    }
+  }
+
+  const result = envSchema.safeParse(envForParsing);
 
   if (!result.success) {
     throw new EnvValidationError(result.error.issues);
