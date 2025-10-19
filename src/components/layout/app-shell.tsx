@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
-  { href: "/new-goal", label: "New Goal" },
+  { href: "/goals/new", label: "New goal" },
 ];
 
 interface AppShellProps {
