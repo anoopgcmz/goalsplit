@@ -8,34 +8,26 @@
   }
 
   html {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   body {
-    @apply min-h-screen bg-background font-body text-neutral-900 antialiased;
+    @apply min-h-screen bg-background font-body text-slate-900 antialiased;
   }
 
   a {
-    @apply text-primary-700 underline underline-offset-4 transition-colors;
+    @apply text-primary-600 underline underline-offset-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
 
   a:hover {
-    @apply text-primary-800;
+    @apply text-primary-700;
   }
 
   :focus-visible {
-    outline: 3px solid theme("colors.primary.600");
-    outline-offset: 4px;
-    box-shadow: theme("boxShadow.focus");
+    outline: none;
   }
 
   ::selection {
-    @apply bg-primary-200 text-neutral-900;
-  }
-}
-
-@layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg border border-transparent bg-primary-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600;
+    @apply bg-primary-200 text-slate-900;
   }
 }
