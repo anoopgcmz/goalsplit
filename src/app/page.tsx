@@ -1,136 +1,240 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useState } from "react";
 
-import { analytics } from '@/lib/analytics';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs } from "@/components/ui/tabs";
+import { Toast } from "@/components/ui/toast";
 
-const highlights = [
-  {
-    title: 'Shared goals, shared clarity',
-    description:
-      'Invite teammates, partners, or family members to co-create plans and keep every milestone in view.',
-  },
-  {
-    title: 'Predictable returns',
-    description:
-      'Track progress against a fixed return schedule so everyone understands how contributions grow over time.',
-  },
-  {
-    title: 'Neutral guidance',
-    description:
-      'GoalSplit never recommends products. Instead, it focuses on transparent planning tools you control.',
-  },
+const goalRows = [
+  { id: "1", name: "Shared workspace refresh", status: "On track", owner: "Pat" },
+  { id: "2", name: "Education fund", status: "Needs review", owner: "Morgan" },
 ];
 
-export default function HomePage(): JSX.Element {
-  useEffect(() => {
-    analytics.init();
-    analytics.track('page_view', {
-      location: 'home_page',
-    });
-  }, []);
+export default function DashboardPage(): JSX.Element {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(true);
+  const [showErrorToast, setShowErrorToast] = useState(false);
 
-  const handleCtaClick = (cta: 'planner' | 'insights') => {
-    analytics.track('marketing_cta_clicked', {
-      location: 'home_page',
-      cta,
-    });
-  };
+  const tabs = [
+    {
+      id: "overview",
+      label: "Overview",
+      content: (
+        <p>
+          Track your shared commitments, projections, and responsibilities from a single view. Everyone sees the same
+          data.
+        </p>
+      ),
+    },
+    {
+      id: "contributors",
+      label: "Contributors",
+      content: <p>Invite collaborators and clarify how much each person is contributing toward every goal.</p>,
+    },
+    {
+      id: "automation",
+      label: "Automation",
+      content: <p>Automate reminders and updates so the group never misses a milestone or planned investment.</p>,
+    },
+  ];
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-20 px-6 py-16 sm:px-10 lg:px-12">
-      <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div className="space-y-6">
-          <span className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-4 py-1 text-sm font-semibold text-primary-700">
-            GoalSplit Planner
-          </span>
-          <h1 className="font-display text-4xl font-bold leading-tight text-neutral-900 sm:text-5xl">
-            Plan shared goals with confidence and a clear path to a fixed return.
-          </h1>
-          <p className="max-w-xl text-lg text-neutral-700 sm:text-xl">
-            GoalSplit gives groups a single source of truth for contribution schedules, role clarity, and progress
-            tracking. No sales pitches—just a calm workspace to align on what matters.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            <a className="btn-primary" href="#features" onClick={() => handleCtaClick('planner')}>
-              Explore the planner
-            </a>
-            <a
-              className="inline-flex items-center justify-center rounded-lg border border-primary-200 px-6 py-3 font-semibold text-primary-700 transition hover:border-primary-300 hover:text-primary-800"
-              href="#insights"
-              onClick={() => handleCtaClick('insights')}
-            >
-              View shared insights
-            </a>
+    <div className="relative flex flex-col gap-8">
+      <div className="fixed right-4 top-24 z-50 flex flex-col gap-3">
+        <Toast
+          open={showSuccessToast}
+          onDismiss={() => setShowSuccessToast(false)}
+          duration={0}
+          title="Goal synced"
+          description="Your shared plan is up to date."
+          variant="success"
+        />
+        <Toast
+          open={showErrorToast}
+          onDismiss={() => setShowErrorToast(false)}
+          title="Contribution missed"
+          description="Morgan needs a reminder about next week's deposit."
+          variant="error"
+        />
+      </div>
+
+      <section aria-labelledby="dashboard-heading" className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 id="dashboard-heading" className="text-2xl font-semibold text-slate-900">
+              Dashboard snapshot
+            </h1>
+            <p className="text-sm text-slate-600">See the latest activity and keep everyone aligned.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button type="button" variant="secondary" onClick={() => setShowErrorToast(true)}>
+              Trigger warning toast
+            </Button>
+            <Button type="button" onClick={() => setDialogOpen(true)}>
+              New goal
+            </Button>
           </div>
         </div>
-        <div className="rounded-3xl border border-primary-100 bg-surface p-8 shadow-lg shadow-primary-100/50">
-          <div className="space-y-4 text-sm text-neutral-700">
-            <p className="text-lg font-semibold text-neutral-900">Upcoming milestones</p>
-            <ul className="space-y-3">
-              <li className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
-                <p className="font-semibold text-neutral-900">Community workspace refresh</p>
-                <p className="text-neutral-600">Shared contribution goal: 80% funded · Fixed 4% return</p>
-              </li>
-              <li className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
-                <p className="font-semibold text-neutral-900">Family education fund</p>
-                <p className="text-neutral-600">Shared contribution goal: 45% funded · Fixed 4% return</p>
-              </li>
-              <li className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
-                <p className="font-semibold text-neutral-900">Wellness retreat savings</p>
-                <p className="text-neutral-600">Shared contribution goal: 20% funded · Fixed 4% return</p>
-              </li>
-            </ul>
-            <p className="rounded-2xl bg-primary-50 p-4 text-primary-800">
-              Everyone sees the same plan, updates, and progress. GoalSplit keeps communication neutral and
-              constructive.
-            </p>
-          </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-600">Contribution pace</span>
+              <Badge variant="info">+6%</Badge>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold text-slate-900">$2,450</p>
+              <p className="text-sm text-slate-600">Average monthly deposits across all shared goals.</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-600">Runway</span>
+              <Badge variant="neutral">7 months</Badge>
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-3 w-full" />
+              <p className="text-sm text-slate-600">Forecast based on current commitments and fixed returns.</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-600">Next milestone</span>
+              <Badge variant="success">On schedule</Badge>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold text-slate-900">June 18</p>
+              <p className="text-sm text-slate-600">Workspace refresh payout.</p>
+            </CardContent>
+            <CardFooter>
+              <Button type="button" variant="ghost">
+                View timeline
+              </Button>
+              <Button type="button" variant="secondary">
+                Share update
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       </section>
 
-      <section id="features" className="space-y-10">
-        <div className="space-y-4">
-          <h2 className="font-display text-3xl font-semibold text-neutral-900 sm:text-4xl">
-            Built for transparent collaboration
+      <section aria-labelledby="tabbed-insights" className="space-y-4">
+        <div className="space-y-1">
+          <h2 id="tabbed-insights" className="text-xl font-semibold text-slate-900">
+            Guidance
           </h2>
-          <p className="max-w-2xl text-lg text-neutral-700">
-            Align on shared outcomes with structured updates, predictable growth forecasts, and clear responsibilities.
-          </p>
+          <p className="text-sm text-slate-600">Switch tabs to explore planning aides for your team.</p>
         </div>
-        <div className="grid gap-8 md:grid-cols-3">
-          {highlights.map((highlight) => (
-            <article key={highlight.title} className="flex flex-col gap-3 rounded-2xl border border-neutral-200/80 bg-white p-6 shadow-sm">
-              <h3 className="font-display text-2xl font-semibold text-neutral-900">{highlight.title}</h3>
-              <p className="text-base text-neutral-700">{highlight.description}</p>
-            </article>
-          ))}
-        </div>
+        <Tabs tabs={tabs} />
       </section>
 
-      <section id="insights" className="rounded-3xl bg-neutral-900 px-8 py-12 text-neutral-100 shadow-xl">
-        <div className="space-y-6">
-          <h2 className="font-display text-3xl font-semibold sm:text-4xl">Transparent insights for every contributor</h2>
-          <p className="max-w-3xl text-lg text-neutral-200">
-            Generate shared summaries, commitments, and timelines that keep everyone informed. GoalSplit highlights
-            variances early and provides calm nudges—never unsolicited offers—so teams can adjust together.
-          </p>
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="rounded-2xl bg-neutral-800/70 p-6 shadow-inner">
-              <p className="text-sm uppercase tracking-wide text-primary-200">Live Alignment</p>
-              <p className="mt-2 text-lg text-neutral-100">Capture notes from planning sessions and publish next steps instantly.</p>
-            </div>
-            <div className="rounded-2xl bg-neutral-800/70 p-6 shadow-inner">
-              <p className="text-sm uppercase tracking-wide text-primary-200">Fixed Returns</p>
-              <p className="mt-2 text-lg text-neutral-100">Keep the focus on predictable schedules so contributors know exactly what to expect.</p>
-            </div>
-            <div className="rounded-2xl bg-neutral-800/70 p-6 shadow-inner">
-              <p className="text-sm uppercase tracking-wide text-primary-200">Shared Wins</p>
-              <p className="mt-2 text-lg text-neutral-100">Celebrate milestones together with updates that spotlight collective progress.</p>
-            </div>
-          </div>
+      <section aria-labelledby="recent-goals" className="space-y-4">
+        <div className="space-y-1">
+          <h2 id="recent-goals" className="text-xl font-semibold text-slate-900">
+            Recent goals
+          </h2>
+          <p className="text-sm text-slate-600">A quick view of the plans your contributors touch most.</p>
         </div>
+        <Card className="p-0">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Name</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell>Owner</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {goalRows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium text-slate-900">{row.name}</TableCell>
+                  <TableCell>{row.status}</TableCell>
+                  <TableCell>{row.owner}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       </section>
-    </main>
+
+      <section aria-labelledby="quick-action" className="grid gap-6 lg:grid-cols-[1fr_minmax(0,320px)]">
+        <Card>
+          <CardHeader>
+            <h2 id="quick-action" className="text-xl font-semibold text-slate-900">
+              Quick planner inputs
+            </h2>
+            <p className="text-sm text-slate-600">Capture a fast update without leaving this view.</p>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="goal-name">Goal name</Label>
+              <Input id="goal-name" name="goal-name" placeholder="Community workspace refresh" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal-owner">Owner</Label>
+              <Input id="goal-owner" name="goal-owner" placeholder="Pat" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal-amount">Target amount</Label>
+              <Input id="goal-amount" name="goal-amount" type="number" inputMode="decimal" placeholder="5000" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal-frequency">Contribution frequency</Label>
+              <Select id="goal-frequency" name="goal-frequency" defaultValue="monthly">
+                <option value="monthly">Monthly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="weekly">Weekly</option>
+              </Select>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button type="button" variant="ghost">
+              Cancel
+            </Button>
+            <Button type="button">Save draft</Button>
+          </CardFooter>
+        </Card>
+        <EmptyState
+          title="Nothing archived yet"
+          description="When you archive a goal, it will land here for future reference."
+          actionLabel="View goal library"
+        />
+      </section>
+
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        title="Create a new goal"
+        description="Define how much to invest, who is accountable, and when the plan should complete."
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => setDialogOpen(false)}>
+              Continue
+            </Button>
+          </>
+        }
+      >
+        <p>Use this dialog to gather the basics. You can add detailed projections after saving the goal.</p>
+      </Dialog>
+    </div>
   );
 }
