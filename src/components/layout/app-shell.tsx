@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navigationItems = [
-  { href: "/", label: "Dashboard" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
   { href: "/new-goal", label: "New Goal" },
 ];
@@ -64,7 +64,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
               {navOpen ? "Close" : "Menu"}
             </Button>
             <Link
-              href="/"
+              href="/dashboard"
               className="flex items-center gap-2 text-base font-semibold text-slate-900"
               title="Plan how much to invest to reach your goals — no product recommendations."
             >
