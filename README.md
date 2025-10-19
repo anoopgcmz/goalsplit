@@ -24,6 +24,17 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to view th
 - `npm run build` - Create a production build of the application.
 - `npm run start` - Run the production build locally.
 - `npm run lint` - Lint the project using ESLint with TypeScript support.
+- `npm run seed:dummy` - Seed demo users and OTP codes for local login.
+
+## Dummy Login
+
+Run the seed script and copy the credentials printed to your terminal:
+
+```bash
+npm run seed:dummy
+```
+
+Then visit `/login` and enter any of the listed email + OTP combinations.
 
 ## Environment Setup
 
