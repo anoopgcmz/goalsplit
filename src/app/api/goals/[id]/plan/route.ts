@@ -10,6 +10,7 @@ import {
 } from "@/lib/financial";
 import { dbConnect } from "@/lib/mongo";
 import GoalModel from "@/models/goal";
+import UserModel from "@/models/user";
 
 import { GoalPlanResponseSchema, type GoalPlanResponse } from "../../schemas";
 import {
@@ -50,13 +51,35 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const serialized = serializeGoal(goalDoc);
 
-    const members: GoalPlanResponse["members"] = serialized.members.map((member) => ({
-      userId: member.userId,
-      role: member.role,
-      splitPercent: member.splitPercent,
-      fixedAmount: member.fixedAmount,
-      perPeriod: 0,
-    }));
+    const memberUserIds = serialized.members.map((member) => member.userId);
+    const memberUsers = await UserModel.find({ _id: { $in: memberUserIds } });
+    const memberDetails = new Map(
+      memberUsers.map((user) => {
+        const normalizedId = user._id.toString();
+        const trimmedName = typeof user.name === "string" ? user.name.trim() : "";
+        return [
+          normalizedId,
+          {
+            email: user.email,
+            name: trimmedName.length > 0 ? trimmedName : null,
+          },
+        ] as const;
+      }),
+    );
+
+    const members: GoalPlanResponse["members"] = serialized.members.map((member) => {
+      const details = memberDetails.get(member.userId);
+
+      return {
+        userId: member.userId,
+        role: member.role,
+        splitPercent: member.splitPercent,
+        fixedAmount: member.fixedAmount,
+        perPeriod: 0,
+        email: details?.email,
+        name: details?.name ?? null,
+      };
+    });
 
     const goalForResponse: GoalPlanResponse["goal"] = {
       id: serialized.id,
