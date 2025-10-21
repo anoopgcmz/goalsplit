@@ -18,12 +18,32 @@ import {
 } from "../../goals/utils";
 import { GoalResponseSchema } from "../../goals/schemas";
 
+const InviteTokenSchema = z.string().trim().min(1, "Invitation token is required");
+
 const AcceptInviteSchema = z.object({
-  token: z.string().trim().min(1, "Invitation token is required"),
+  token: InviteTokenSchema,
+});
+
+const AcceptInviteQuerySchema = z.object({
+  token: InviteTokenSchema,
 });
 
 const AcceptInviteResponseSchema = z.object({
   goal: GoalResponseSchema,
+});
+
+const AcceptInvitePreviewResponseSchema = z.object({
+  invite: z.object({
+    goalId: z.string(),
+    goalTitle: z.string(),
+    inviterName: z.string().nullable(),
+    inviterEmail: z.string().email().nullable(),
+    inviteeEmail: z.string().email(),
+    defaultSplitPercent: z.number().min(0).max(100).nullable(),
+    fixedAmount: z.number().min(0).nullable(),
+    currency: z.string(),
+    expiresAt: z.string().datetime(),
+  }),
 });
 
 const normaliseEmail = (email: string) => email.trim().toLowerCase();
@@ -77,6 +97,100 @@ const rebalancePercentages = (goal: GoalDocument | null) => {
 
   goal.set({ members });
 };
+
+export async function GET(request: NextRequest) {
+  try {
+    await dbConnect();
+
+    const rawToken = request.nextUrl.searchParams.get("token") ?? "";
+    const { token } = AcceptInviteQuerySchema.parse({ token: rawToken });
+
+    const invite = await InviteModel.findOne({ token });
+
+    if (!invite) {
+      return createErrorResponse(
+        "GOAL_NOT_FOUND",
+        "We could not find that invitation.",
+        404,
+        {
+          hint: "It may have already been used or revoked.",
+          logLevel: "info",
+          context: { token, operation: "preview-invite" },
+        },
+      );
+    }
+
+    if (invite.acceptedAt) {
+      return createErrorResponse(
+        "GOAL_CONFLICT",
+        "This invitation was already accepted.",
+        409,
+        {
+          hint: "Ask the goal owner to send a new invitation if needed.",
+          logLevel: "info",
+          context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+        },
+      );
+    }
+
+    if (invite.expiresAt.getTime() <= Date.now()) {
+      return createErrorResponse("GOAL_CONFLICT", "This invitation has expired.", 409, {
+        hint: "Ask the goal owner to send a fresh invitation.",
+        logLevel: "info",
+        context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+      });
+    }
+
+    const [goal, inviter] = await Promise.all([
+      GoalModel.findById(invite.goalId),
+      UserModel.findById(invite.createdBy),
+    ]);
+
+    if (!goal) {
+      return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
+        hint: "It may have been removed.",
+        logLevel: "info",
+        context: {
+          inviteId: invite._id.toString(),
+          goalId: invite.goalId.toString(),
+          operation: "preview-invite",
+        },
+      });
+    }
+
+    const payload = AcceptInvitePreviewResponseSchema.parse({
+      invite: {
+        goalId: objectIdToString(invite.goalId),
+        goalTitle: goal.title,
+        inviterName: inviter?.name ?? null,
+        inviterEmail: inviter?.email ?? null,
+        inviteeEmail: invite.email,
+        defaultSplitPercent:
+          invite.defaultSplitPercent == null ? null : Number(invite.defaultSplitPercent),
+        fixedAmount: invite.fixedAmount == null ? null : Number(invite.fixedAmount),
+        currency: goal.currency,
+        expiresAt: invite.expiresAt.toISOString(),
+      },
+    });
+
+    return NextResponse.json(payload, { status: 200 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return handleZodError(error);
+    }
+
+    return createErrorResponse(
+      "GOAL_INTERNAL_ERROR",
+      "We could not preview that invitation right now.",
+      500,
+      {
+        hint: "Please refresh and try again.",
+        error,
+        context: { operation: "preview-invite" },
+      },
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
