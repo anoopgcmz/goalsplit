@@ -1,10 +1,16 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/table";
+import type { AuthUser } from "@/app/api/auth/schemas";
 import type { GoalPlanResponse } from "@/app/api/goals/schemas";
 import {
   netTargetAfterExisting,
@@ -615,11 +621,608 @@ const ScenarioCompare = (props: {
   );
 };
 
+type EditableColumnKey = "split" | "fixed";
+
+interface MemberRowState {
+  userId: string;
+  role: GoalPlanResponse["members"][number]["role"];
+  name: string | null;
+  email?: string;
+  splitPercent: string;
+  fixedAmount: string;
+}
+
+interface ComputedMemberRow extends MemberRowState {
+  splitValue: number | null;
+  fixedValue: number | null;
+  perPeriod: number;
+}
+
+interface MemberComputationResult {
+  rows: ComputedMemberRow[];
+  percentSum: number;
+  percentEligibleCount: number;
+  hasOverflow: boolean;
+  fixedTotal: number;
+  totalPerPeriod: number;
+  isTotalFinite: boolean;
+}
+
+const NUMERIC_EPSILON = 1e-6;
+const PERCENT_TOLERANCE = 0.5;
+
+const parseNumericInput = (value: string): number | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const initializeMemberRows = (members: GoalPlanResponse["members"]): MemberRowState[] =>
+  members.map((member) => ({
+    userId: member.userId,
+    role: member.role,
+    name: member.name ?? null,
+    email: member.email,
+    splitPercent: member.splitPercent != null ? member.splitPercent.toString() : "",
+    fixedAmount: member.fixedAmount != null ? member.fixedAmount.toString() : "",
+  }));
+
+const computeMemberAllocations = (
+  rows: MemberRowState[],
+  totalPerPeriod: number,
+): MemberComputationResult => {
+  const isTotalFinite = Number.isFinite(totalPerPeriod);
+  const normalizedTotal = isTotalFinite ? totalPerPeriod : 0;
+
+  const computedRows: ComputedMemberRow[] = rows.map((row) => {
+    const rawSplit = parseNumericInput(row.splitPercent);
+    const rawFixed = parseNumericInput(row.fixedAmount);
+    const splitValue = rawSplit != null ? Math.max(rawSplit, 0) : null;
+    const fixedValue = rawFixed != null ? Math.max(rawFixed, 0) : null;
+
+    return {
+      ...row,
+      splitValue,
+      fixedValue,
+      perPeriod: fixedValue ?? 0,
+    };
+  });
+
+  const fixedTotal = computedRows.reduce((sum, row) => sum + (row.fixedValue ?? 0), 0);
+
+  let remaining = normalizedTotal - fixedTotal;
+  let hasOverflow = false;
+
+  if (isTotalFinite && remaining < -NUMERIC_EPSILON) {
+    hasOverflow = true;
+    remaining = 0;
+  }
+
+  const percentEligible = computedRows.filter((row) => row.fixedValue == null);
+  const percentSum = percentEligible.reduce((sum, row) => sum + (row.splitValue ?? 0), 0);
+
+  if (percentEligible.length > 0 && percentSum > NUMERIC_EPSILON) {
+    percentEligible.forEach((row) => {
+      const ratio = (row.splitValue ?? 0) / percentSum;
+      const contribution = isTotalFinite ? remaining * ratio : 0;
+      row.perPeriod += contribution;
+    });
+  }
+
+  return {
+    rows: computedRows,
+    percentSum,
+    percentEligibleCount: percentEligible.length,
+    hasOverflow,
+    fixedTotal,
+    totalPerPeriod: normalizedTotal,
+    isTotalFinite,
+  };
+};
+
+interface MembersSectionProps {
+  goalId: string;
+  members: GoalPlanResponse["members"];
+  totalPerPeriod: number;
+  formatCurrency: (value: number) => string;
+  canManageMembers: boolean;
+}
+
+function MembersSection(props: MembersSectionProps): JSX.Element {
+  const { goalId, members, totalPerPeriod, formatCurrency, canManageMembers } = props;
+  const [rows, setRows] = useState<MemberRowState[]>(() => initializeMemberRows(members));
+  const baseId = useId();
+  const splitHintId = `${baseId}-split-hint`;
+  const fixedHintId = `${baseId}-fixed-hint`;
+  const sectionDescriptionId = `${baseId}-members-description`;
+  const percentWarningId = `${baseId}-percent-warning`;
+  const overflowWarningId = `${baseId}-overflow-warning`;
+  const captionId = `${baseId}-members-caption`;
+  const splitHeaderId = `${baseId}-split-header`;
+  const fixedHeaderId = `${baseId}-fixed-header`;
+  const titleId = `${baseId}-title`;
+  const inviteStatusId = `${baseId}-invite-status`;
+  const inviteHelperId = `${baseId}-invite-helper`;
+
+  useEffect(() => {
+    setRows(initializeMemberRows(members));
+  }, [members]);
+
+  const computation = useMemo(
+    () => computeMemberAllocations(rows, totalPerPeriod),
+    [rows, totalPerPeriod],
+  );
+
+  const columnOrder: readonly EditableColumnKey[] = ["split", "fixed"];
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const percentWarningActive =
+    computation.percentEligibleCount > 0 &&
+    Math.abs(computation.percentSum - 100) > PERCENT_TOLERANCE;
+  const overflowWarningActive = computation.hasOverflow && computation.isTotalFinite;
+
+  const tableDescribedBy = [sectionDescriptionId]
+    .concat(percentWarningActive ? [percentWarningId] : [])
+    .concat(overflowWarningActive ? [overflowWarningId] : [])
+    .join(" ") || undefined;
+
+  const registerInputRef = (rowIndex: number, column: EditableColumnKey) => {
+    return (element: HTMLInputElement | null) => {
+      const key = `${rowIndex}-${column}`;
+      if (element) {
+        inputRefs.current[key] = element;
+      } else {
+        delete inputRefs.current[key];
+      }
+    };
+  };
+
+  const focusCell = (rowIndex: number, column: EditableColumnKey) => {
+    const key = `${rowIndex}-${column}`;
+    const element = inputRefs.current[key];
+    if (element) {
+      element.focus();
+      element.select?.();
+    }
+  };
+
+  const handleCellKeyDown = (
+    event: KeyboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    column: EditableColumnKey,
+  ) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      const offset = event.key === "ArrowUp" ? -1 : 1;
+      const nextRow = rowIndex + offset;
+      if (nextRow >= 0 && nextRow < computation.rows.length) {
+        focusCell(nextRow, column);
+      }
+      return;
+    }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const target = event.currentTarget;
+      const selectionStart = target.selectionStart ?? 0;
+      const selectionEnd = target.selectionEnd ?? 0;
+      const isAtStart = selectionStart === 0 && selectionEnd === 0;
+      const isAtEnd =
+        selectionStart === target.value.length && selectionEnd === target.value.length;
+      const columnIndex = columnOrder.indexOf(column);
+
+      if (event.key === "ArrowLeft" && isAtStart && columnIndex > 0) {
+        event.preventDefault();
+        focusCell(rowIndex, columnOrder[columnIndex - 1]!);
+      } else if (
+        event.key === "ArrowRight" &&
+        isAtEnd &&
+        columnIndex < columnOrder.length - 1
+      ) {
+        event.preventDefault();
+        focusCell(rowIndex, columnOrder[columnIndex + 1]!);
+      }
+    }
+  };
+
+  const handleSplitChange = (rowIndex: number, value: string) => {
+    setRows((prev) =>
+      prev.map((row, index) => (index === rowIndex ? { ...row, splitPercent: value } : row)),
+    );
+  };
+
+  const handleFixedChange = (rowIndex: number, value: string) => {
+    setRows((prev) =>
+      prev.map((row, index) => (index === rowIndex ? { ...row, fixedAmount: value } : row)),
+    );
+  };
+
+  const handleRemoveMember = (rowIndex: number) => {
+    if (!canManageMembers) {
+      return;
+    }
+
+    setRows((prev) => prev.filter((_, index) => index !== rowIndex));
+  };
+
+  const handleRebalance = () => {
+    setRows((prev) => {
+      const next = prev.map((row) => ({ ...row }));
+      const eligible = next
+        .map((row) => ({
+          row,
+          percent: parseNumericInput(row.splitPercent) ?? 0,
+          hasFixed: parseNumericInput(row.fixedAmount) != null,
+        }))
+        .filter((entry) => !entry.hasFixed);
+
+      if (eligible.length === 0) {
+        return next;
+      }
+
+      const total = eligible.reduce((sum, entry) => sum + entry.percent, 0);
+
+      if (total <= NUMERIC_EPSILON) {
+        const share = eligible.length > 0 ? 100 / eligible.length : 0;
+        eligible.forEach((entry) => {
+          entry.row.splitPercent = clamp(share, 0, 100).toFixed(1);
+        });
+        return next;
+      }
+
+      eligible.forEach((entry) => {
+        const ratio = entry.percent / total;
+        entry.row.splitPercent = clamp(ratio * 100, 0, 100).toFixed(1);
+      });
+
+      return next;
+    });
+  };
+
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteSplit, setInviteSplit] = useState("50.0");
+  const [inviteFixed, setInviteFixed] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<"idle" | "submitting" | "success" | "error">(
+    "idle",
+  );
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+
+  const openInvite = () => {
+    const remainingPercent = Math.max(0, 100 - computation.percentSum);
+    const defaultSplit =
+      computation.percentEligibleCount > 0 && remainingPercent > 0 ? remainingPercent : 50;
+    setInviteSplit(clamp(defaultSplit, 0, 100).toFixed(1));
+    setIsInviteOpen(true);
+  };
+
+  const closeInvite = () => {
+    setIsInviteOpen(false);
+    setInviteEmail("");
+    setInviteFixed("");
+    setInviteStatus("idle");
+    setInviteMessage(null);
+  };
+
+  const handleInviteSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManageMembers) {
+      return;
+    }
+
+    setInviteStatus("submitting");
+    setInviteMessage(null);
+
+    try {
+      const parsedSplit = Number.parseFloat(inviteSplit);
+      const parsedFixed = Number.parseFloat(inviteFixed);
+
+      const body = {
+        email: inviteEmail,
+        defaultSplitPercent: Number.isFinite(parsedSplit) ? parsedSplit : 0,
+        fixedAmount:
+          inviteFixed.trim().length > 0 && Number.isFinite(parsedFixed) ? parsedFixed : null,
+      };
+
+      const response = await fetch(`/api/goals/${goalId}/invite`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "We couldn't send that invite. Try again.";
+        try {
+          const payload = (await response.json()) as { error?: { message?: string } };
+          if (payload?.error?.message) {
+            errorMessage = payload.error.message;
+          }
+        } catch {
+          // ignore JSON parsing issues
+        }
+        setInviteStatus("error");
+        setInviteMessage(errorMessage);
+        return;
+      }
+
+      const payload = (await response.json()) as { inviteUrl?: string };
+      const successMessage =
+        payload?.inviteUrl != null
+          ? `Invitation ready. Share this link if needed:\n${payload.inviteUrl}`
+          : "Invitation sent. We'll email the collaborator shortly.";
+
+      setInviteStatus("success");
+      setInviteMessage(successMessage);
+    } catch (error) {
+      setInviteStatus("error");
+      setInviteMessage("We couldn't send that invite. Check your connection and try again.");
+    }
+  };
+
+  const tableRows = computation.rows;
+  const showActions = canManageMembers;
+
+  return (
+    <section className="space-y-4" aria-labelledby={titleId}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+            Members
+          </h2>
+          <p id={sectionDescriptionId} className="text-sm text-slate-600">
+            Adjust how contributions are split between collaborators.
+          </p>
+        </div>
+        {canManageMembers ? (
+          <Button type="button" onClick={openInvite}>
+            Invite collaborator
+          </Button>
+        ) : null}
+      </div>
+
+      <p id={splitHintId} className="sr-only">
+        Enter the percent of the remaining contribution this member should cover.
+      </p>
+      <p id={fixedHintId} className="sr-only">
+        Enter a fixed contribution amount per period for this member.
+      </p>
+
+      {percentWarningActive ? (
+        <div
+          id={percentWarningId}
+          className="flex flex-wrap items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:items-center sm:justify-between"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="flex-1">
+            Split percentages currently add up to {computation.percentSum.toFixed(1)}%. Adjust them
+            to reach 100%, or let us rebalance automatically.
+          </p>
+          <Button type="button" variant="secondary" onClick={handleRebalance}>
+            Rebalance to 100%
+          </Button>
+        </div>
+      ) : null}
+
+      {overflowWarningActive ? (
+        <div
+          id={overflowWarningId}
+          className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
+          role="alert"
+        >
+          Fixed contributions total {formatCurrency(roundCurrency(computation.fixedTotal))} which
+          exceeds the required {formatCurrency(roundCurrency(computation.totalPerPeriod))} per
+          period. Reduce fixed amounts or adjust the splits.
+        </div>
+      ) : null}
+
+      <Table aria-describedby={tableDescribedBy} aria-labelledby={titleId}>
+        <caption id={captionId} className="px-4 py-3 text-left text-sm text-slate-600">
+          Manage each member&apos;s share of the goal. Required amounts update instantly as you edit the
+          table.
+        </caption>
+        <TableHead>
+          <TableRow>
+            <TableHeaderCell className="w-64">Member</TableHeaderCell>
+            <TableHeaderCell>Role</TableHeaderCell>
+            <TableHeaderCell id={splitHeaderId}>Split %</TableHeaderCell>
+            <TableHeaderCell id={fixedHeaderId}>Fixed amount</TableHeaderCell>
+            <TableHeaderCell>Required per period</TableHeaderCell>
+            {showActions ? <TableHeaderCell className="text-right">Actions</TableHeaderCell> : null}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {tableRows.map((row, rowIndex) => {
+            const rowLabelId = `${baseId}-member-${rowIndex}`;
+            const primaryLabel = row.name ?? row.email ?? `Member ${rowIndex + 1}`;
+            const secondaryLabel =
+              row.name && row.email
+                ? row.email
+                : !row.name && !row.email
+                ? `ID: ${row.userId}`
+                : null;
+            const splitDescribedBy = [splitHintId]
+              .concat(percentWarningActive ? [percentWarningId] : [])
+              .join(" ")
+              .trim();
+            const fixedDescribedBy = [fixedHintId]
+              .concat(overflowWarningActive ? [overflowWarningId] : [])
+              .join(" ")
+              .trim();
+            const formattedPerPeriod = Number.isFinite(row.perPeriod)
+              ? formatCurrency(roundCurrency(row.perPeriod))
+              : "—";
+
+            return (
+              <TableRow key={row.userId}>
+                <th
+                  scope="row"
+                  id={rowLabelId}
+                  className="px-4 py-3 text-sm font-semibold text-slate-900"
+                >
+                  <div className="space-y-1">
+                    <p>{primaryLabel}</p>
+                    {secondaryLabel ? (
+                      <p className="text-xs font-medium text-slate-500">{secondaryLabel}</p>
+                    ) : null}
+                  </div>
+                </th>
+                <TableCell className="text-sm text-slate-600">
+                  {row.role === "owner" ? "Owner" : "Collaborator"}
+                </TableCell>
+                <TableCell>
+                  <Input
+                    ref={registerInputRef(rowIndex, "split")}
+                    value={row.splitPercent}
+                    inputMode="decimal"
+                    onChange={(event) => handleSplitChange(rowIndex, event.target.value)}
+                    onKeyDown={(event) => handleCellKeyDown(event, rowIndex, "split")}
+                    aria-labelledby={`${rowLabelId} ${splitHeaderId}`.trim()}
+                    aria-describedby={splitDescribedBy.length > 0 ? splitDescribedBy : undefined}
+                    placeholder="0"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    ref={registerInputRef(rowIndex, "fixed")}
+                    value={row.fixedAmount}
+                    inputMode="decimal"
+                    onChange={(event) => handleFixedChange(rowIndex, event.target.value)}
+                    onKeyDown={(event) => handleCellKeyDown(event, rowIndex, "fixed")}
+                    aria-labelledby={`${rowLabelId} ${fixedHeaderId}`.trim()}
+                    aria-describedby={fixedDescribedBy.length > 0 ? fixedDescribedBy : undefined}
+                    placeholder="0"
+                  />
+                </TableCell>
+                <TableCell className="font-medium text-slate-900">
+                  {formattedPerPeriod}
+                </TableCell>
+                {showActions ? (
+                  <TableCell className="text-right">
+                    {row.role === "owner" ? (
+                      <span className="text-sm text-slate-400">Owner</span>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                        onClick={() => handleRemoveMember(rowIndex)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </TableCell>
+                ) : null}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+
+      {canManageMembers ? (
+        <Dialog
+          open={isInviteOpen}
+          onClose={closeInvite}
+          title="Invite a collaborator"
+          description="Send an invite email to share this goal."
+          footer={
+            <>
+              <Button type="button" variant="secondary" onClick={closeInvite}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="invite-collaborator-form"
+                disabled={inviteStatus === "submitting"}
+              >
+                {inviteStatus === "submitting" ? "Sending…" : "Send invite"}
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="invite-collaborator-form"
+            className="space-y-4"
+            onSubmit={(event) => {
+              void handleInviteSubmit(event);
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor={`${baseId}-invite-email`}>Collaborator email</Label>
+              <Input
+                id={`${baseId}-invite-email`}
+                type="email"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                required
+                aria-describedby={`${inviteHelperId} ${inviteStatusId}`.trim()}
+              />
+              <p id={inviteHelperId} className="text-xs text-slate-500">
+                We’ll email an invite link.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor={`${baseId}-invite-split`}>Default split %</Label>
+                <Input
+                  id={`${baseId}-invite-split`}
+                  inputMode="decimal"
+                  value={inviteSplit}
+                  onChange={(event) => setInviteSplit(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${baseId}-invite-fixed`}>Fixed amount (optional)</Label>
+                <Input
+                  id={`${baseId}-invite-fixed`}
+                  inputMode="decimal"
+                  value={inviteFixed}
+                  onChange={(event) => setInviteFixed(event.target.value)}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <p
+              id={inviteStatusId}
+              role="status"
+              aria-live="polite"
+              className={
+                inviteMessage
+                  ? inviteStatus === "error"
+                    ? "text-sm text-rose-600"
+                    : "whitespace-pre-line text-sm text-emerald-700"
+                  : "sr-only"
+              }
+            >
+              {inviteMessage ?? ""}
+            </p>
+          </form>
+        </Dialog>
+      ) : null}
+    </section>
+  );
+}
+
 export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
   const { goalId } = props;
   const [plan, setPlan] = useState<GoalPlanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -654,6 +1257,35 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
 
     return () => controller.abort();
   }, [goalId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch("/api/me", {
+          method: "GET",
+          credentials: "include",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { user: AuthUser };
+        setCurrentUser(payload.user);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          return;
+        }
+      }
+    };
+
+    void fetchCurrentUser();
+
+    return () => controller.abort();
+  }, []);
 
   const formatter = useMemo(() => {
     if (!plan) {
@@ -719,6 +1351,11 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
 
   const formatCurrency = (value: number) => formatter(value);
 
+  const ownerId = plan.members.find((member) => member.role === "owner")?.userId ?? null;
+  const canManageMembers =
+    currentUser != null && ownerId != null && ownerId === currentUser.id;
+  const showMembersSection = plan.goal.isShared || canManageMembers;
+
   return (
     <div className="space-y-10">
       <header className="space-y-4">
@@ -739,6 +1376,16 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
       <PlanSummaryCard plan={plan} scenario={baseScenario} formatCurrency={formatCurrency} />
 
       <ChartSection plan={plan} scenario={baseScenario} formatCurrency={formatCurrency} />
+
+      {showMembersSection ? (
+        <MembersSection
+          goalId={goalId}
+          members={plan.members}
+          totalPerPeriod={plan.totals.perPeriod}
+          formatCurrency={formatCurrency}
+          canManageMembers={canManageMembers}
+        />
+      ) : null}
 
       <ScenarioCompare plan={plan} baseScenario={baseScenario} formatCurrency={formatCurrency} />
     </div>

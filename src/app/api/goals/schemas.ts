@@ -22,6 +22,8 @@ export const GoalMemberResponseSchema = z.object({
 
 export const GoalPlanMemberSchema = GoalMemberResponseSchema.extend({
   perPeriod: z.number(),
+  email: z.string().email().optional(),
+  name: z.string().trim().min(1).optional().nullable(),
 });
 
 export const GoalPlanResponseSchema = z.object({

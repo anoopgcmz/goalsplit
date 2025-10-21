@@ -11,14 +11,16 @@ type TableCellProps = HTMLAttributes<HTMLTableCellElement>;
 type TableHeadCellProps = HTMLAttributes<HTMLTableCellElement>;
 
 export function Table(props: TableProps): JSX.Element {
-  const { className, ...rest } = props;
+  const { className, children, ...rest } = props;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-md">
       <table
         className={cn("min-w-full border-separate border-spacing-0 bg-white text-left text-sm", className)}
         {...rest}
-      />
+      >
+        {children}
+      </table>
     </div>
   );
 }
