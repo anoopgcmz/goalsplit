@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -16,6 +16,8 @@ const variantStyles: Record<ButtonVariant, string> = {
     "bg-white text-slate-900 shadow-md hover:bg-slate-50 focus-visible:ring-primary-500 disabled:bg-slate-100",
   ghost:
     "bg-transparent text-slate-700 hover:bg-slate-100/80 focus-visible:ring-primary-500 disabled:text-slate-400",
+  danger:
+    "bg-rose-600 text-white shadow-md hover:bg-rose-700 focus-visible:ring-rose-500 disabled:bg-rose-300",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

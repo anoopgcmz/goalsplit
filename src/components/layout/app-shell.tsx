@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ToastProvider } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const navigationItems = [
@@ -43,7 +44,8 @@ export function AppShell(props: AppShellProps): JSX.Element {
   }, [navOpen]);
 
   return (
-    <div className="min-h-screen bg-background text-slate-900">
+    <ToastProvider>
+      <div className="min-h-screen bg-background text-slate-900">
       <a
         href="#content"
         className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-2xl focus-visible:bg-primary-600 focus-visible:px-4 focus-visible:py-2 focus-visible:text-white"
@@ -147,6 +149,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
           </footer>
         </div>
       </div>
-    </div>
+      </div>
+    </ToastProvider>
   );
 }

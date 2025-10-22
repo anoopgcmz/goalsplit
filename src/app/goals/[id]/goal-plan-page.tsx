@@ -1,15 +1,21 @@
 "use client";
 
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { CardSkeleton } from "@/components/ui/card-skeleton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { useToast } from "@/components/ui/toast";
 import type { AuthUser } from "@/app/api/auth/schemas";
 import type { GoalPlanResponse } from "@/app/api/goals/schemas";
 import {
@@ -17,6 +23,7 @@ import {
   requiredLumpSumForFutureValue,
   requiredPaymentForFutureValue,
 } from "@/lib/financial";
+import { useFormatters } from "@/lib/hooks/use-formatters";
 
 type ContributionFrequency = GoalPlanResponse["assumptions"]["contributionFrequency"];
 type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
@@ -246,8 +253,9 @@ const ChartSection = (props: {
   plan: GoalPlanResponse;
   scenario: ScenarioMetrics;
   formatCurrency: (value: number) => string;
+  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
 }) => {
-  const { plan, scenario, formatCurrency } = props;
+  const { plan, scenario, formatCurrency, formatPercent } = props;
   const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
   const chartId = "goal-plan-chart";
 
@@ -362,14 +370,22 @@ const ChartSection = (props: {
             <span className="inline-block h-2 w-2 rounded-full bg-primary-500" aria-hidden="true" />
             <span>
               Your contributions: {formatCurrency(roundCurrency(scenario.contributionsTotal))} (
-              {scenario.contributionPercent.toFixed(1)}%)
+              {formatPercent(scenario.contributionPercent, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}
+              )
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
             <span>
               Growth: {formatCurrency(roundCurrency(scenario.growthTotal))} (
-              {scenario.growthPercent.toFixed(1)}%)
+              {formatPercent(scenario.growthPercent, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}
+              )
             </span>
           </div>
         </div>
@@ -382,8 +398,10 @@ const PlanSummaryCard = (props: {
   plan: GoalPlanResponse;
   scenario: ScenarioMetrics;
   formatCurrency: (value: number) => string;
+  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatHorizon: (input: { years?: number; months?: number; totalMonths?: number } | number) => string;
 }) => {
-  const { plan, scenario, formatCurrency } = props;
+  const { plan, scenario, formatCurrency, formatPercent, formatHorizon } = props;
   const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
   const perPeriodDisplay = Number.isFinite(scenario.perPeriod)
     ? formatCurrency(roundCurrency(scenario.perPeriod))
@@ -403,8 +421,7 @@ const PlanSummaryCard = (props: {
             <h2 className="text-2xl font-semibold text-slate-900">What it takes</h2>
           </div>
           <p className="text-sm text-slate-500">
-            Horizon: {scenario.years} {scenario.years === 1 ? "year" : "years"} &bull; {scenario.months}{" "}
-            {scenario.months === 1 ? "month" : "months"}
+            Horizon: {formatHorizon({ years: scenario.years, months: scenario.months })}
           </p>
         </div>
       </CardHeader>
@@ -423,11 +440,19 @@ const PlanSummaryCard = (props: {
         <div className="flex flex-wrap items-center gap-6 text-sm text-slate-600">
           <span>
             Contributions: {formatCurrency(roundCurrency(scenario.contributionsTotal))} (
-            {scenario.contributionPercent.toFixed(1)}%)
+            {formatPercent(scenario.contributionPercent, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}
+            )
           </span>
           <span>
             Growth: {formatCurrency(roundCurrency(scenario.growthTotal))} (
-            {scenario.growthPercent.toFixed(1)}%)
+            {formatPercent(scenario.growthPercent, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}
+            )
           </span>
         </div>
       </CardFooter>
@@ -439,8 +464,10 @@ const ScenarioCompare = (props: {
   plan: GoalPlanResponse;
   baseScenario: ScenarioMetrics;
   formatCurrency: (value: number) => string;
+  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatHorizon: (input: { years?: number; months?: number; totalMonths?: number } | number) => string;
 }) => {
-  const { plan, baseScenario, formatCurrency } = props;
+  const { plan, baseScenario, formatCurrency, formatPercent, formatHorizon } = props;
   const [isOpen, setIsOpen] = useState(false);
   const [ratePercent, setRatePercent] = useState(baseScenario.ratePercent);
   const [timelineOffsetMonths, setTimelineOffsetMonths] = useState(0);
@@ -490,7 +517,12 @@ const ScenarioCompare = (props: {
               <div>
                 <label htmlFor="rate-slider" className="flex items-center justify-between text-sm font-medium text-slate-700">
                   <span>Expected return rate</span>
-                  <span>{ratePercent.toFixed(1)}%</span>
+                  <span>
+                    {formatPercent(ratePercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}
+                  </span>
                 </label>
                 <input
                   id="rate-slider"
@@ -559,7 +591,10 @@ const ScenarioCompare = (props: {
                         ? formatCurrency(roundCurrency(baseScenario.perPeriod))
                         : "Not available"
                     }
-                    secondary={`Rate ${baseScenario.ratePercent.toFixed(1)}% • Horizon ${baseScenario.years}y ${baseScenario.months}m`}
+                    secondary={`Rate ${formatPercent(baseScenario.ratePercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} • Horizon ${formatHorizon({ years: baseScenario.years, months: baseScenario.months })}`}
                   />
                   <ScenarioValue
                     label="Lump sum today"
@@ -573,12 +608,18 @@ const ScenarioCompare = (props: {
                   <ScenarioValue
                     label="Your contributions"
                     value={formatCurrency(roundCurrency(baseScenario.contributionsTotal))}
-                    secondary={`${baseScenario.contributionPercent.toFixed(1)}% of goal`}
+                    secondary={`${formatPercent(baseScenario.contributionPercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} of goal`}
                   />
                   <ScenarioValue
                     label="Projected growth"
                     value={formatCurrency(roundCurrency(baseScenario.growthTotal))}
-                    secondary={`${baseScenario.growthPercent.toFixed(1)}% of goal`}
+                    secondary={`${formatPercent(baseScenario.growthPercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} of goal`}
                   />
                 </div>
                 <div className="space-y-3">
@@ -590,7 +631,13 @@ const ScenarioCompare = (props: {
                         ? formatCurrency(roundCurrency(adjustedScenario.perPeriod))
                         : "Not available"
                     }
-                    secondary={`Rate ${adjustedScenario.ratePercent.toFixed(1)}% • Horizon ${adjustedScenario.years}y ${adjustedScenario.months}m`}
+                    secondary={`Rate ${formatPercent(adjustedScenario.ratePercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} • Horizon ${formatHorizon({
+                      years: adjustedScenario.years,
+                      months: adjustedScenario.months,
+                    })}`}
                   />
                   <ScenarioValue
                     label="Lump sum today"
@@ -604,12 +651,18 @@ const ScenarioCompare = (props: {
                   <ScenarioValue
                     label="Your contributions"
                     value={formatCurrency(roundCurrency(adjustedScenario.contributionsTotal))}
-                    secondary={`${adjustedScenario.contributionPercent.toFixed(1)}% of goal`}
+                    secondary={`${formatPercent(adjustedScenario.contributionPercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} of goal`}
                   />
                   <ScenarioValue
                     label="Projected growth"
                     value={formatCurrency(roundCurrency(adjustedScenario.growthTotal))}
-                    secondary={`${adjustedScenario.growthPercent.toFixed(1)}% of goal`}
+                    secondary={`${formatPercent(adjustedScenario.growthPercent, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} of goal`}
                   />
                 </div>
               </div>
@@ -737,12 +790,15 @@ interface MembersSectionProps {
   members: GoalPlanResponse["members"];
   totalPerPeriod: number;
   formatCurrency: (value: number) => string;
+  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
   canManageMembers: boolean;
 }
 
 function MembersSection(props: MembersSectionProps): JSX.Element {
-  const { goalId, members, totalPerPeriod, formatCurrency, canManageMembers } = props;
+  const { goalId, members, totalPerPeriod, formatCurrency, formatPercent, canManageMembers } = props;
+  const { publish } = useToast();
   const [rows, setRows] = useState<MemberRowState[]>(() => initializeMemberRows(members));
+  const [pendingRemovalUserId, setPendingRemovalUserId] = useState<string | null>(null);
   const baseId = useId();
   const splitHintId = `${baseId}-split-hint`;
   const fixedHintId = `${baseId}-fixed-hint`;
@@ -848,15 +904,47 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     );
   };
 
-  const handleRemoveMember = (rowIndex: number) => {
+  const requestRemoveMember = (userId: string) => {
     if (!canManageMembers) {
       return;
     }
 
-    setRows((prev) => prev.filter((_, index) => index !== rowIndex));
+    setPendingRemovalUserId(userId);
+  };
+
+  const confirmRemoveMember = () => {
+    if (!canManageMembers || !pendingRemovalUserId) {
+      setPendingRemovalUserId(null);
+      return;
+    }
+
+    const removedMember = rows.find((row) => row.userId === pendingRemovalUserId) ?? null;
+    setRows((prev) => prev.filter((row) => row.userId !== pendingRemovalUserId));
+
+    if (removedMember) {
+      let displayName = removedMember.email ?? "This collaborator";
+      if (typeof removedMember.name === "string") {
+        const normalizedName = removedMember.name.trim();
+        if (normalizedName.length > 0) {
+          displayName = normalizedName;
+        }
+      }
+      publish({
+        title: "Collaborator removed",
+        description: `${displayName} no longer has access to this goal.`,
+        variant: "success",
+      });
+    }
+
+    setPendingRemovalUserId(null);
+  };
+
+  const cancelRemoveMember = () => {
+    setPendingRemovalUserId(null);
   };
 
   const handleRebalance = () => {
+    let updated = false;
     setRows((prev) => {
       const next = prev.map((row) => ({ ...row }));
       const eligible = next
@@ -868,7 +956,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         .filter((entry) => !entry.hasFixed);
 
       if (eligible.length === 0) {
-        return next;
+        return prev;
       }
 
       const total = eligible.reduce((sum, entry) => sum + entry.percent, 0);
@@ -876,18 +964,34 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       if (total <= NUMERIC_EPSILON) {
         const share = eligible.length > 0 ? 100 / eligible.length : 0;
         eligible.forEach((entry) => {
-          entry.row.splitPercent = clamp(share, 0, 100).toFixed(1);
+          const nextValue = clamp(share, 0, 100).toFixed(1);
+          if (entry.row.splitPercent !== nextValue) {
+            updated = true;
+            entry.row.splitPercent = nextValue;
+          }
         });
-        return next;
+        return updated ? next : prev;
       }
 
       eligible.forEach((entry) => {
         const ratio = entry.percent / total;
-        entry.row.splitPercent = clamp(ratio * 100, 0, 100).toFixed(1);
+        const nextValue = clamp(ratio * 100, 0, 100).toFixed(1);
+        if (entry.row.splitPercent !== nextValue) {
+          updated = true;
+          entry.row.splitPercent = nextValue;
+        }
       });
 
-      return next;
+      return updated ? next : prev;
     });
+
+    if (updated) {
+      publish({
+        title: "Splits rebalanced",
+        description: "Percent contributions now total 100%.",
+        variant: "success",
+      });
+    }
   };
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -956,6 +1060,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         }
         setInviteStatus("error");
         setInviteMessage(errorMessage);
+        publish({
+          title: "Invite failed",
+          description: errorMessage,
+          variant: "error",
+        });
         return;
       }
 
@@ -967,14 +1076,33 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
       setInviteStatus("success");
       setInviteMessage(successMessage);
+      publish({
+        title: "Invitation ready",
+        description:
+          payload?.inviteUrl != null
+            ? "Share the invite link with your collaborator."
+            : "We emailed your collaborator a link to join.",
+        variant: "success",
+      });
     } catch (error) {
       setInviteStatus("error");
       setInviteMessage("We couldn't send that invite. Check your connection and try again.");
+      publish({
+        title: "Invite failed",
+        description: "We couldn't send that invite. Check your connection and try again.",
+        variant: "error",
+      });
     }
   };
 
   const tableRows = computation.rows;
   const showActions = canManageMembers;
+  const pendingRemovalRow = pendingRemovalUserId
+    ? rows.find((row) => row.userId === pendingRemovalUserId) ?? null
+    : null;
+  const removalDisplayName = pendingRemovalRow?.name?.trim().length
+    ? pendingRemovalRow.name
+    : pendingRemovalRow?.email ?? "this collaborator";
 
   return (
     <section className="space-y-4" aria-labelledby={titleId}>
@@ -1009,8 +1137,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           aria-live="polite"
         >
           <p className="flex-1">
-            Split percentages currently add up to {computation.percentSum.toFixed(1)}%. Adjust them
-            to reach 100%, or let us rebalance automatically.
+            Split percentages currently add up to {formatPercent(computation.percentSum, {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}.
+            Adjust them to reach 100%, or let us rebalance automatically.
           </p>
           <Button type="button" variant="secondary" onClick={handleRebalance}>
             Rebalance to 100%
@@ -1120,7 +1251,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                         type="button"
                         variant="ghost"
                         className="text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                        onClick={() => handleRemoveMember(rowIndex)}
+                        onClick={() => requestRemoveMember(row.userId)}
                       >
                         Remove
                       </Button>
@@ -1213,6 +1344,25 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           </form>
         </Dialog>
       ) : null}
+
+      {canManageMembers ? (
+        <ConfirmDialog
+          open={pendingRemovalRow != null}
+          onCancel={cancelRemoveMember}
+          onConfirm={confirmRemoveMember}
+          confirmLabel="Remove"
+          tone="danger"
+          title="Remove collaborator?"
+          description="They’ll immediately lose access to this shared goal."
+        >
+          {pendingRemovalRow ? (
+            <p>
+              Are you sure you want to remove <span className="font-semibold">{removalDisplayName}</span>?
+              They won’t be able to view or contribute to this goal anymore.
+            </p>
+          ) : null}
+        </ConfirmDialog>
+      ) : null}
     </section>
   );
 }
@@ -1223,40 +1373,54 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const planAbortRef = useRef<AbortController | null>(null);
+
+  const loadPlan = useCallback(async () => {
+    planAbortRef.current?.abort();
+    const controller = new AbortController();
+    planAbortRef.current = controller;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch(`/api/goals/${goalId}/plan`, {
+        method: "GET",
+        credentials: "include",
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error("We couldn't load this goal plan. Try again later.");
+      }
+
+      const payload = (await response.json()) as GoalPlanResponse;
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setPlan(payload);
+      setError(null);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        return;
+      }
+      const message = (err as Error).message || "We couldn't load this goal plan. Try again later.";
+      setError(message);
+    } finally {
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        planAbortRef.current = null;
+      }
+    }
+  }, [goalId]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    void loadPlan();
 
-    const fetchPlan = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch(`/api/goals/${goalId}/plan`, {
-          method: "GET",
-          credentials: "include",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("We couldn't load this goal plan. Try again later.");
-        }
-
-        const payload = (await response.json()) as GoalPlanResponse;
-        setPlan(payload);
-        setError(null);
-      } catch (err) {
-        if ((err as Error).name === "AbortError") {
-          return;
-        }
-        setError((err as Error).message);
-      } finally {
-        setIsLoading(false);
-      }
+    return () => {
+      planAbortRef.current?.abort();
     };
-
-    void fetchPlan();
-
-    return () => controller.abort();
-  }, [goalId]);
+  }, [loadPlan]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1287,69 +1451,77 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     return () => controller.abort();
   }, []);
 
-  const formatter = useMemo(() => {
-    if (!plan) {
-      return (value: number) => value.toLocaleString();
-    }
-
-    return (value: number) =>
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: plan.goal.currency,
-        maximumFractionDigits: 2,
-      }).format(value);
-  }, [plan]);
+  const { formatCurrency, formatPercent, formatHorizon } = useFormatters({
+    currency: plan?.goal.currency,
+  });
 
   const baseScenario = useMemo(() => (plan ? calculateScenario(plan) : null), [plan]);
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <header className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Goal plan</p>
-          <h1 className="text-3xl font-semibold text-slate-900">Loading goal plan…</h1>
-        </header>
-        <p className="text-sm text-slate-600">Fetching projection details for this goal.</p>
+      <div className="space-y-10" aria-busy="true">
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-4 w-full max-w-xl" />
+        </div>
+        <CardSkeleton headerLines={2} bodyLines={4} />
+        <CardSkeleton headerLines={2} bodyLines={6} />
+        <TableSkeleton rowCount={5} columnCount={5} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <header className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Goal plan</p>
           <h1 className="text-3xl font-semibold text-slate-900">We hit a snag</h1>
         </header>
-        <p className="text-sm text-slate-600">{error}</p>
+        <ErrorState
+          description={error}
+          retryLabel="Retry loading"
+          onRetry={() => {
+            void loadPlan();
+          }}
+        />
       </div>
     );
   }
 
   if (!plan || !baseScenario) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <header className="space-y-3">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Goal plan</p>
           <h1 className="text-3xl font-semibold text-slate-900">Plan unavailable</h1>
         </header>
-          <p className="text-sm text-slate-600">
-            We couldn&apos;t find the details for this goal. It may have been removed or you may not have access.
-          </p>
+        <ErrorState
+          title="Plan unavailable"
+          description="We couldn’t find the details for this goal. It may have been removed or you may not have access."
+          retryLabel="Refresh"
+          onRetry={() => {
+            void loadPlan();
+          }}
+        />
       </div>
     );
   }
+
+  const assumptionRateLabel = formatPercent(plan.assumptions.expectedRate, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   const chips = [
     { label: "Target date", value: formatDate(new Date(plan.goal.targetDate)) },
     { label: "Currency", value: plan.goal.currency },
     {
       label: "Assumption",
-      value: `Assumed ${plan.assumptions.expectedRate.toFixed(1)}% / ${plan.assumptions.compounding}`,
+      value: `Assumed ${assumptionRateLabel} / ${plan.assumptions.compounding}`,
     },
   ];
-
-  const formatCurrency = (value: number) => formatter(value);
 
   const ownerId = plan.members.find((member) => member.role === "owner")?.userId ?? null;
   const canManageMembers =
@@ -1373,9 +1545,20 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
         </div>
       </header>
 
-      <PlanSummaryCard plan={plan} scenario={baseScenario} formatCurrency={formatCurrency} />
+      <PlanSummaryCard
+        plan={plan}
+        scenario={baseScenario}
+        formatCurrency={formatCurrency}
+        formatPercent={formatPercent}
+        formatHorizon={formatHorizon}
+      />
 
-      <ChartSection plan={plan} scenario={baseScenario} formatCurrency={formatCurrency} />
+      <ChartSection
+        plan={plan}
+        scenario={baseScenario}
+        formatCurrency={formatCurrency}
+        formatPercent={formatPercent}
+      />
 
       {showMembersSection ? (
         <MembersSection
@@ -1383,11 +1566,18 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
           members={plan.members}
           totalPerPeriod={plan.totals.perPeriod}
           formatCurrency={formatCurrency}
+          formatPercent={formatPercent}
           canManageMembers={canManageMembers}
         />
       ) : null}
 
-      <ScenarioCompare plan={plan} baseScenario={baseScenario} formatCurrency={formatCurrency} />
+      <ScenarioCompare
+        plan={plan}
+        baseScenario={baseScenario}
+        formatCurrency={formatCurrency}
+        formatPercent={formatPercent}
+        formatHorizon={formatHorizon}
+      />
     </div>
   );
 }
