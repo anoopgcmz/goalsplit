@@ -184,8 +184,9 @@ export default function LoginPage(): JSX.Element {
                 </div>
                 <div
                   id={errorRegionId}
-                  role={emailError ? "alert" : undefined}
-                  aria-live="assertive"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
                   className="min-h-[1.25rem] text-sm text-rose-600"
                 >
                   {emailError || null}
@@ -227,8 +228,9 @@ export default function LoginPage(): JSX.Element {
                   </p>
                 </div>
                 <div
-                  role={codeError ? "alert" : undefined}
-                  aria-live="assertive"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
                   className="min-h-[1.25rem] text-sm text-rose-600"
                 >
                   {codeError || null}
