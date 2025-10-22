@@ -10,6 +10,7 @@ import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -515,15 +516,25 @@ const ScenarioCompare = (props: {
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
               <div>
-                <label htmlFor="rate-slider" className="flex items-center justify-between text-sm font-medium text-slate-700">
-                  <span>Expected return rate</span>
+                <div className="flex items-center justify-between text-sm font-medium text-slate-700">
+                  <label
+                    htmlFor="rate-slider"
+                    className="flex items-center gap-2 text-sm font-medium text-slate-700"
+                  >
+                    <span>Expected return rate</span>
+                    <InfoTooltip
+                      id="scenario-expected-return"
+                      content="Try 6–10% to compare scenarios."
+                      label="Learn how to pick an expected return"
+                    />
+                  </label>
                   <span>
                     {formatPercent(ratePercent, {
                       minimumFractionDigits: 1,
                       maximumFractionDigits: 1,
                     })}
                   </span>
-                </label>
+                </div>
                 <input
                   id="rate-slider"
                   type="range"
@@ -537,9 +548,7 @@ const ScenarioCompare = (props: {
                   aria-valuemax={20}
                   aria-valuenow={ratePercent}
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Adjust the annual return percentage to see new projections.
-                </p>
+                <p className="mt-1 text-xs text-slate-500">Try different returns to see how the plan changes.</p>
               </div>
 
               <div className="space-y-2">

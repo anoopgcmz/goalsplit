@@ -246,7 +246,7 @@ export default function DashboardPage(): JSX.Element {
         ) : (
           <EmptyState
             title="No goals yet"
-            description="Start your first plan to see how much progress you need each month."
+            description="Create your first goal to see how much to save each month."
             actionLabel="Create your first goal"
             icon={
               <svg aria-hidden="true" viewBox="0 0 120 80" className="h-20 w-28 text-slate-300" role="img">
