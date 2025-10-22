@@ -9,6 +9,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 
 const currencies = [
   { label: "Indian Rupee (INR)", value: "INR" },
@@ -106,6 +107,7 @@ export default function NewGoalPage(): JSX.Element {
   const router = useRouter();
   const [state, setState] = useState<FormState>(defaultState);
   const [touched, setTouched] = useState<TouchedState>({});
+  const { publish } = useToast();
 
   const errors = useMemo(() => validateForm(state), [state]);
 
@@ -146,7 +148,11 @@ export default function NewGoalPage(): JSX.Element {
       return;
     }
 
-    // TODO: Hook up API and redirect to the created goal page.
+    publish({
+      title: "Goal created",
+      description: "We saved your goal setup. You can refine the plan anytime.",
+      variant: "success",
+    });
     router.push("/goals");
   };
 

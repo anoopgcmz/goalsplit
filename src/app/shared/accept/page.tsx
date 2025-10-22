@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { CardSkeleton } from "@/components/ui/card-skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { useToast } from "@/components/ui/toast";
 
 interface ApiErrorResponse {
   error: {
@@ -77,6 +80,8 @@ export default function SharedAcceptPage(): JSX.Element {
   const router = useRouter();
   const token = searchParams.get("token");
 
+  const { publish } = useToast();
+
   const [viewState, setViewState] = useState<ViewState>("loading");
   const [invite, setInvite] = useState<InvitePreview | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
@@ -84,6 +89,7 @@ export default function SharedAcceptPage(): JSX.Element {
   const [acceptStatus, setAcceptStatus] = useState<AcceptStatus>("idle");
   const [acceptError, setAcceptError] = useState("");
   const [acceptedGoal, setAcceptedGoal] = useState<GoalSummary | null>(null);
+  const inviteAbortRef = useRef<AbortController | null>(null);
 
   const loginHref = useMemo(() => {
     if (!token) {
@@ -92,6 +98,69 @@ export default function SharedAcceptPage(): JSX.Element {
 
     const nextPath = `/shared/accept?token=${token}`;
     return `/login?next=${encodeURIComponent(nextPath)}`;
+  }, [token]);
+
+  const loadInvite = useCallback(async () => {
+    inviteAbortRef.current?.abort();
+    inviteAbortRef.current = null;
+
+    if (!token) {
+      setViewState("invalid");
+      setInvite(null);
+      setStatusMessage("This invitation link is missing information. Ask the goal owner to send a new invite.");
+      return;
+    }
+
+    const controller = new AbortController();
+    inviteAbortRef.current = controller;
+
+    setViewState("loading");
+    setInvite(null);
+    setStatusMessage("");
+
+    try {
+      const response = await fetch(`/api/shared/accept?token=${encodeURIComponent(token)}`, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let fallbackMessage = "We couldn’t verify that invitation. Request a new invite from the goal owner.";
+        try {
+          const payload = (await response.json()) as ApiErrorResponse;
+          fallbackMessage = payload.error.message;
+        } catch {
+          // Ignore JSON parse errors; fall back to default copy.
+        }
+
+        if (!controller.signal.aborted) {
+          setStatusMessage(fallbackMessage);
+          setViewState("invalid");
+        }
+        return;
+      }
+
+      const data = (await response.json()) as InvitePreviewResponse;
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      setInvite(data.invite);
+      setViewState("valid");
+    } catch (error) {
+      if ((error as { name?: string }).name === "AbortError") {
+        return;
+      }
+
+      if (!controller.signal.aborted) {
+        setStatusMessage("We ran into a network issue while checking your invitation. Please refresh and try again.");
+        setViewState("invalid");
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        inviteAbortRef.current = null;
+      }
+    }
   }, [token]);
 
   useEffect(() => {
@@ -134,72 +203,12 @@ export default function SharedAcceptPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    if (!token) {
-      setViewState("invalid");
-      setInvite(null);
-      setStatusMessage("This invitation link is missing information. Ask the goal owner to send a new invite.");
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    const controller = new AbortController();
-
-    const loadInvite = async () => {
-      setViewState("loading");
-      setInvite(null);
-      setStatusMessage("");
-
-      try {
-        const response = await fetch(`/api/shared/accept?token=${encodeURIComponent(token)}`, {
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (!response.ok) {
-          let fallbackMessage = "We couldn’t verify that invitation. Request a new invite from the goal owner.";
-          try {
-            const payload = (await response.json()) as ApiErrorResponse;
-            fallbackMessage = payload.error.message;
-          } catch (error) {
-            // Ignore JSON parse errors; fall back to default copy.
-          }
-
-          setStatusMessage(fallbackMessage);
-          setViewState("invalid");
-          return;
-        }
-
-        const data = (await response.json()) as InvitePreviewResponse;
-        setInvite(data.invite);
-        setViewState("valid");
-      } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
-        if ((error as { name?: string }).name === "AbortError") {
-          return;
-        }
-
-        setStatusMessage("We ran into a network issue while checking your invitation. Please refresh and try again.");
-        setViewState("invalid");
-      }
-    };
-
     void loadInvite();
 
     return () => {
-      isMounted = false;
-      controller.abort();
+      inviteAbortRef.current?.abort();
     };
-  }, [token]);
+  }, [loadInvite]);
 
   const handleJoinGoal = async () => {
     if (!token || !invite || acceptStatus === "loading") {
@@ -229,6 +238,11 @@ export default function SharedAcceptPage(): JSX.Element {
         }
         setAcceptError(fallbackMessage);
         setAcceptStatus("error");
+        publish({
+          title: "Join failed",
+          description: fallbackMessage,
+          variant: "error",
+        });
         return;
       }
 
@@ -236,12 +250,22 @@ export default function SharedAcceptPage(): JSX.Element {
       setAcceptedGoal({ id: payload.goal.id, title: payload.goal.title });
       setViewState("accepted");
       setAcceptStatus("idle");
+      publish({
+        title: "Joined goal",
+        description: `You’re now collaborating on “${payload.goal.title}”.`,
+        variant: "success",
+      });
     } catch (error) {
       if ((error as { name?: string }).name === "AbortError") {
         return;
       }
       setAcceptError("Something went wrong while joining. Check your connection and try again.");
       setAcceptStatus("error");
+      publish({
+        title: "Join failed",
+        description: "Something went wrong while joining. Check your connection and try again.",
+        variant: "error",
+      });
     }
   };
 
@@ -288,29 +312,26 @@ export default function SharedAcceptPage(): JSX.Element {
         </div>
 
         {viewState === "loading" ? (
-          <Card aria-busy="true" aria-live="polite" className="mx-auto w-full max-w-xl">
-            <CardContent className="space-y-4 text-center">
-              <p className="text-base font-medium text-slate-900">Checking your invitation…</p>
-              <p className="text-sm text-slate-600">
-                Hang tight while we verify the link and goal details.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="mx-auto w-full max-w-xl space-y-4" aria-busy="true">
+            <CardSkeleton headerLines={2} bodyLines={3} />
+          </div>
         ) : null}
 
         {viewState === "invalid" ? (
-          <Card className="mx-auto w-full max-w-xl" role="alert">
-            <CardHeader>
-              <h2 className="text-xl font-semibold text-slate-900">We couldn’t use that invite</h2>
-              <p className="text-sm text-slate-600">{statusMessage}</p>
-            </CardHeader>
-            <CardFooter className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-sm text-slate-600">We can send you a fresh link if it expired.</span>
-              <Button type="button" onClick={handleRequestNewInvite}>
+          <div className="mx-auto w-full max-w-xl space-y-4">
+            <ErrorState
+              title="We couldn’t use that invite"
+              description={statusMessage}
+              retryLabel={token ? "Try again" : undefined}
+              onRetry={token ? () => { void loadInvite(); } : undefined}
+            />
+            <div className="flex flex-col items-stretch gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <span>We can send you a fresh link if it expired.</span>
+              <Button type="button" variant="secondary" onClick={handleRequestNewInvite}>
                 Request a new invite
               </Button>
-            </CardFooter>
-          </Card>
+            </div>
+          </div>
         ) : null}
 
         {viewState === "valid" && invite ? (
