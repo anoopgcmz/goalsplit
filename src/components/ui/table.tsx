@@ -14,9 +14,12 @@ export function Table(props: TableProps): JSX.Element {
   const { className, children, ...rest } = props;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-md">
+    <div className="w-full max-w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200 shadow-md">
       <table
-        className={cn("min-w-full border-separate border-spacing-0 bg-white text-left text-sm", className)}
+        className={cn(
+          "min-w-full border-separate border-spacing-0 bg-white text-left text-sm",
+          className,
+        )}
         {...rest}
       >
         {children}

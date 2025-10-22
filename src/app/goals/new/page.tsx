@@ -183,7 +183,7 @@ export default function NewGoalPage(): JSX.Element {
                     required
                   />
                   {showError("title") ? (
-                    <p id="goal-title-error" className="text-sm text-red-600">
+                    <p id="goal-title-error" className="text-sm text-red-600" aria-live="polite">
                       {errors.title}
                     </p>
                   ) : null}
@@ -208,7 +208,7 @@ export default function NewGoalPage(): JSX.Element {
                       required
                     />
                     {showError("targetAmount") ? (
-                      <p id="target-amount-error" className="text-sm text-red-600">
+                      <p id="target-amount-error" className="text-sm text-red-600" aria-live="polite">
                         {errors.targetAmount}
                       </p>
                     ) : null}
@@ -233,7 +233,7 @@ export default function NewGoalPage(): JSX.Element {
                       ))}
                     </Select>
                     {showError("currency") ? (
-                      <p id="currency-error" className="text-sm text-red-600">
+                      <p id="currency-error" className="text-sm text-red-600" aria-live="polite">
                         {errors.currency}
                       </p>
                     ) : null}
@@ -271,7 +271,7 @@ export default function NewGoalPage(): JSX.Element {
                   Pick when you&apos;ll need the money.
                 </p>
                 {showError("targetDate") ? (
-                  <p id="target-date-error" className="text-sm text-red-600">
+                  <p id="target-date-error" className="text-sm text-red-600" aria-live="polite">
                     {errors.targetDate}
                   </p>
                 ) : null}
@@ -320,7 +320,7 @@ export default function NewGoalPage(): JSX.Element {
                     required
                   />
                   {showError("expectedReturn") ? (
-                    <p id="expected-return-error" className="text-sm text-red-600">
+                    <p id="expected-return-error" className="text-sm text-red-600" aria-live="polite">
                       {errors.expectedReturn}
                     </p>
                   ) : null}
@@ -430,7 +430,7 @@ export default function NewGoalPage(): JSX.Element {
                   aria-describedby={showError("existingSavings") ? "existing-savings-error" : undefined}
                 />
                 {showError("existingSavings") ? (
-                  <p id="existing-savings-error" className="text-sm text-red-600">
+                  <p id="existing-savings-error" className="text-sm text-red-600" aria-live="polite">
                     {errors.existingSavings}
                   </p>
                 ) : null}
