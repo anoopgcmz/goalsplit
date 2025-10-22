@@ -145,7 +145,8 @@ export function AppShell(props: AppShellProps): JSX.Element {
             {children}
           </main>
           <footer className="border-t border-slate-200 px-6 py-4 text-sm text-slate-500">
-            © {new Date().getFullYear()} Goal Planner. Build clarity without recommendations.
+            © {new Date().getFullYear()} Goal Planner. Assumed annual returns are for planning only and not recommendations of any
+            product.
           </footer>
         </div>
       </div>

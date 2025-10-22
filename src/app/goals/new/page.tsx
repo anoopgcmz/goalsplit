@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -82,25 +83,6 @@ function validateForm(state: FormState): FormErrors {
   }
 
   return errors;
-}
-
-function InfoHint(props: { description: string; id: string }): JSX.Element {
-  const { description, id } = props;
-  return (
-    <span className="ml-1 inline-flex items-center" aria-live="off">
-      <button
-        type="button"
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-        title={description}
-        aria-describedby={id}
-      >
-        ?
-      </button>
-      <span id={id} role="tooltip" className="sr-only">
-        {description}
-      </span>
-    </span>
-  );
 }
 
 export default function NewGoalPage(): JSX.Element {
@@ -312,13 +294,14 @@ export default function NewGoalPage(): JSX.Element {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center text-sm font-medium text-slate-700">
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                     <Label htmlFor="expected-return" className="text-sm font-medium text-slate-700">
                       Expected annual return %
                     </Label>
-                    <InfoHint
+                    <InfoTooltip
                       id="expected-return-tooltip"
-                      description="The yearly growth rate you expect from investments supporting this goal."
+                      content="Try 6–10% to compare scenarios."
+                      label="Learn how to pick an expected return"
                     />
                   </div>
                   <Input
@@ -344,8 +327,17 @@ export default function NewGoalPage(): JSX.Element {
                 </div>
 
                 <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium text-slate-700">Compounding</legend>
-                  <p className="text-sm text-slate-500">How often your returns are reinvested.</p>
+                  <legend className="text-sm font-medium text-slate-700">
+                    <span className="flex items-center gap-2">
+                      Compounding
+                      <InfoTooltip
+                        id="compounding-tooltip"
+                        content="How often returns are added to your balance."
+                        label="Learn about compounding"
+                      />
+                    </span>
+                  </legend>
+                  <p className="text-sm text-slate-500">Pick how often returns are added to your balance.</p>
                   <div className="flex flex-wrap gap-3">
                     {(["monthly", "yearly"] as Compounding[]).map((option) => {
                       const isChecked = state.compounding === option;
@@ -371,8 +363,17 @@ export default function NewGoalPage(): JSX.Element {
                 </fieldset>
 
                 <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium text-slate-700">Contribution frequency</legend>
-                  <p className="text-sm text-slate-500">How often you plan to invest new money.</p>
+                  <legend className="text-sm font-medium text-slate-700">
+                    <span className="flex items-center gap-2">
+                      Contribution frequency
+                      <InfoTooltip
+                        id="contribution-frequency-tooltip"
+                        content="How often you’ll invest (monthly/yearly)."
+                        label="Learn about contribution frequency"
+                      />
+                    </span>
+                  </legend>
+                  <p className="text-sm text-slate-500">Decide if you’ll invest monthly or once a year.</p>
                   <div className="flex flex-wrap gap-3">
                     {(["monthly", "yearly"] as ContributionFrequency[]).map((option) => {
                       const isChecked = state.contributionFrequency === option;

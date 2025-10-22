@@ -44,7 +44,7 @@ export default function GoalsPage(): JSX.Element {
       <section aria-label="Archived goals">
         <EmptyState
           title="No archived goals"
-          description="Close out a plan to store the details here for future review."
+          description="When you finish a goal, we'll keep it here so you can look back."
         />
       </section>
     </div>
