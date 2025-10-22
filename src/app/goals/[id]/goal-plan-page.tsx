@@ -25,6 +25,8 @@ import {
   requiredPaymentForFutureValue,
 } from "@/lib/financial";
 import { useFormatters } from "@/lib/hooks/use-formatters";
+import { mockGoalsAdapter } from "@/lib/mocks/goals";
+import { mockAuthAdapter } from "@/lib/mocks/auth";
 
 type ContributionFrequency = GoalPlanResponse["assumptions"]["contributionFrequency"];
 type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
@@ -1041,43 +1043,18 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       const parsedSplit = Number.parseFloat(inviteSplit);
       const parsedFixed = Number.parseFloat(inviteFixed);
 
-      const body = {
-        email: inviteEmail,
-        defaultSplitPercent: Number.isFinite(parsedSplit) ? parsedSplit : 0,
-        fixedAmount:
-          inviteFixed.trim().length > 0 && Number.isFinite(parsedFixed) ? parsedFixed : null,
-      };
-
-      const response = await fetch(`/api/goals/${goalId}/invite`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
+      const payload = await mockGoalsAdapter.sendInvite(
+        goalId,
+        {
+          email: inviteEmail,
+          defaultSplitPercent: Number.isFinite(parsedSplit) ? parsedSplit : undefined,
+          fixedAmount:
+            inviteFixed.trim().length > 0 && Number.isFinite(parsedFixed)
+              ? parsedFixed
+              : null,
         },
-        body: JSON.stringify(body),
-      });
+      );
 
-      if (!response.ok) {
-        let errorMessage = "We couldn't send that invite. Try again.";
-        try {
-          const payload = (await response.json()) as { error?: { message?: string } };
-          if (payload?.error?.message) {
-            errorMessage = payload.error.message;
-          }
-        } catch {
-          // ignore JSON parsing issues
-        }
-        setInviteStatus("error");
-        setInviteMessage(errorMessage);
-        publish({
-          title: "Invite failed",
-          description: errorMessage,
-          variant: "error",
-        });
-        return;
-      }
-
-      const payload = (await response.json()) as { inviteUrl?: string };
       const successMessage =
         payload?.inviteUrl != null
           ? `Invitation ready. Share this link if needed:\n${payload.inviteUrl}`
@@ -1392,17 +1369,7 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`/api/goals/${goalId}/plan`, {
-        method: "GET",
-        credentials: "include",
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error("We couldn't load this goal plan. Try again later.");
-      }
-
-      const payload = (await response.json()) as GoalPlanResponse;
+      const payload = await mockGoalsAdapter.getPlan(goalId, controller.signal);
       if (controller.signal.aborted) {
         return;
       }
@@ -1436,18 +1403,8 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
 
     const fetchCurrentUser = async () => {
       try {
-        const response = await fetch("/api/me", {
-          method: "GET",
-          credentials: "include",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as { user: AuthUser };
-        setCurrentUser(payload.user);
+        const user = await mockAuthAdapter.getCurrentUser(controller.signal);
+        setCurrentUser(user);
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           return;
