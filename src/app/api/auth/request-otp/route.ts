@@ -6,7 +6,7 @@ import { dbConnect } from "@/lib/mongo";
 import OtpCodeModel from "@/models/otp-code";
 import OtpRequestCounterModel from "@/models/otp-request-counter";
 
-import { RequestOtpInputSchema, RequestOtpResponseSchema } from "../schemas";
+import { RequestOtpInputSchema } from "../schemas";
 import {
   createAuthErrorResponse,
   handleAuthZodError,
@@ -119,12 +119,7 @@ export async function POST(request: NextRequest) {
 
     await createOtpCode(email);
 
-    const payload = RequestOtpResponseSchema.parse({
-      status: "sent",
-      expiresInSeconds: OTP_EXPIRY_SECONDS,
-    });
-
-    return NextResponse.json(payload, { status: 200 });
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof SyntaxError) {
       return createAuthErrorResponse(

@@ -30,22 +30,29 @@ export async function POST(request: NextRequest) {
     const email = normaliseEmail(parsedBody.email);
     const code = parsedBody.code.trim();
 
-    const otpCode = await OtpCodeModel.findOne({ email, code });
+    const now = new Date();
+    const otpCode = await OtpCodeModel.findOneAndUpdate(
+      { email, code, consumed: false, expiresAt: { $gt: now } },
+      { $set: { consumed: true } },
+      { sort: { createdAt: -1 }, new: true },
+    );
 
     if (!otpCode) {
-      return createAuthErrorResponse(
-        "AUTH_INVALID_CODE",
-        "That code isn’t quite right. Please check your email and try again.",
-        400,
-        {
-          hint: "If you no longer have the code, request a new one.",
-          logLevel: "warn",
-          context: { emailHash: hashIdentifier(email) },
-        },
-      );
-    }
+      const latestOtp = await OtpCodeModel.findOne({ email, code }).sort({ createdAt: -1 });
 
-    if (otpCode.expiresAt.getTime() <= Date.now() || otpCode.consumed) {
+      if (!latestOtp) {
+        return createAuthErrorResponse(
+          "AUTH_INVALID_CODE",
+          "That code isn’t quite right. Please check your email and try again.",
+          400,
+          {
+            hint: "If you no longer have the code, request a new one.",
+            logLevel: "warn",
+            context: { emailHash: hashIdentifier(email) },
+          },
+        );
+      }
+
       return createAuthErrorResponse(
         "AUTH_EXPIRED_CODE",
         "This code has expired. Request a new one to keep going.",
@@ -57,9 +64,6 @@ export async function POST(request: NextRequest) {
         },
       );
     }
-
-    otpCode.consumed = true;
-    await otpCode.save();
 
     const user = await UserModel.findOneAndUpdate(
       { email },

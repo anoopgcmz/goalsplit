@@ -11,6 +11,7 @@ import { requestOtp, verifyOtp } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/request";
 
 const CODE_LENGTH = 6;
+const OTP_EXPIRY_SECONDS = 10 * 60;
 const EMAIL_PATTERN = /^(?:[a-zA-Z0-9_'^&/+-])+(?:\.(?:[a-zA-Z0-9_'^&/+-])+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
 
 type StatusType = "idle" | "loading" | "success" | "error" | "rate-limit";
@@ -90,7 +91,7 @@ export default function LoginPage(): JSX.Element {
       });
 
       try {
-        const response = await requestOtp({ email: trimmedEmail }, controller.signal);
+        await requestOtp({ email: trimmedEmail }, controller.signal);
         if (controller.signal.aborted) {
           return;
         }
@@ -103,7 +104,7 @@ export default function LoginPage(): JSX.Element {
               : "Check your inbox for a 6-digit code.",
         });
         setStep("code");
-        const cooldown = Math.max(30, Math.min(response.expiresInSeconds, 120));
+        const cooldown = Math.max(30, Math.min(OTP_EXPIRY_SECONDS, 120));
         setResendCooldown(cooldown);
       } catch (error) {
         if (controller.signal.aborted) {
@@ -171,7 +172,7 @@ export default function LoginPage(): JSX.Element {
         type: "success",
         message: "You’re all set. We’ll finish signing you in now.",
       });
-      void router.push(nextPath);
+      void router.replace(nextPath);
       void router.refresh();
     } catch (error) {
       if (controller.signal.aborted) {

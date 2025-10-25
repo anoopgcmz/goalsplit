@@ -20,11 +20,6 @@ export const RequestOtpInputSchema = z.object({
     .transform((value) => value.toLowerCase()),
 });
 
-export const RequestOtpResponseSchema = z.object({
-  status: z.literal('sent'),
-  expiresInSeconds: z.number().int().positive(),
-});
-
 export const VerifyOtpInputSchema = z.object({
   email: z
     .string()
@@ -53,4 +48,3 @@ export type RequestOtpInput = z.infer<typeof RequestOtpInputSchema>;
 export type VerifyOtpInput = z.infer<typeof VerifyOtpInputSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type VerifyOtpResponse = z.infer<typeof VerifyOtpResponseSchema>;
-export type RequestOtpResponse = z.infer<typeof RequestOtpResponseSchema>;
