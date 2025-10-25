@@ -1,18 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState } from "@/components/ui/error-state";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { GoalSummary } from "@/lib/api/goals";
-import { fetchGoalSummaries } from "@/lib/api/goals";
+import type { GoalSummary } from "@/lib/goals/summary";
 import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
-import { isApiError } from "@/lib/api/request";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -27,25 +22,6 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-
-const SummarySkeleton = () => (
-  <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-    {Array.from({ length: 3 }).map((_, index) => (
-      <div key={index} className="space-y-2">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className={index === 0 ? "h-10 w-40" : "h-6 w-28"} />
-      </div>
-    ))}
-  </div>
-);
-
-const GoalListSkeleton = () => (
-  <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-    {Array.from({ length: 3 }).map((_, index) => (
-      <CardSkeleton key={index} headerLines={2} bodyLines={4} />
-    ))}
-  </div>
-);
 
 function getRelativeDueLabel(targetDate: string): string {
   const date = new Date(targetDate);
@@ -88,6 +64,7 @@ function getNextDeadline(goals: GoalSummary[]): GoalSummary | undefined {
 
 function GoalCard(props: GoalSummary): JSX.Element {
   const {
+    id,
     title,
     targetAmount,
     targetDate,
@@ -126,7 +103,7 @@ function GoalCard(props: GoalSummary): JSX.Element {
   }, [cappedProgress, prefersReducedMotion]);
 
   return (
-    <Card className="flex h-full flex-col gap-5">
+    <Card className="flex h-full flex-col gap-5" data-goal-id={id}>
       <header className="flex items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -203,60 +180,21 @@ function GoalCard(props: GoalSummary): JSX.Element {
   );
 }
 
-export default function DashboardPage(): JSX.Element {
-  const [goals, setGoals] = useState<GoalSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+interface DashboardPageProps {
+  goals: GoalSummary[];
+}
 
-  const loadGoals = useCallback(async () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+export default function DashboardPage(props: DashboardPageProps): JSX.Element {
+  const { goals } = props;
 
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await fetchGoalSummaries(controller.signal);
-      if (controller.signal.aborted) {
-        return;
-      }
-      setGoals(data);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") {
-        return;
-      }
-      if (isApiError(err)) {
-        setError(err.message);
-      } else {
-        setError("We couldn't load your goals. Try again later.");
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-        abortRef.current = null;
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadGoals();
-
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, [loadGoals]);
-
-  const totalContributionAmount = goals.reduce(
-    (sum, goal) => sum + goal.contributionAmount,
-    0,
+  const totalContributionAmount = useMemo(
+    () => goals.reduce((sum, goal) => sum + goal.contributionAmount, 0),
+    [goals],
   );
-  const nextDeadline = getNextDeadline(goals);
+  const nextDeadline = useMemo(() => getNextDeadline(goals), [goals]);
   const activeGoalCount = goals.length;
 
-  const deadlineLabel = isLoading
-    ? "Loading…"
-    : nextDeadline
+  const deadlineLabel = nextDeadline
     ? `${dateFormatter.format(new Date(nextDeadline.targetDate))} • ${getRelativeDueLabel(nextDeadline.targetDate)}`
     : "No deadlines scheduled";
 
@@ -267,79 +205,56 @@ export default function DashboardPage(): JSX.Element {
         <p className="text-sm text-slate-600">Track every target, how much to set aside, and when each plan will complete.</p>
       </header>
 
-      {error ? (
-        <ErrorState
-          title="Unable to load goals"
-          description={error}
-          retryLabel="Retry"
-          onRetry={() => {
-            void loadGoals();
-          }}
-        />
-      ) : (
-        <>
-          <section
-            aria-label="Summary"
-            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
-            aria-busy={isLoading}
-          >
-            {isLoading ? (
-              <SummarySkeleton />
-            ) : (
-              <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-500">Total monthly required</p>
-                  <p className="text-3xl font-semibold text-slate-900">
-            {currencyFormatter.format(totalContributionAmount)}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium text-slate-500">Active goals</p>
-                  <p className="text-lg font-semibold text-slate-900">{activeGoalCount}</p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium text-slate-500">Next deadline</p>
-                  <span className="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-sm font-medium text-primary-700">
-                    {deadlineLabel}
-                  </span>
-                </div>
-              </div>
-            )}
-          </section>
+      <section aria-label="Summary" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-500">Total monthly required</p>
+            <p className="text-3xl font-semibold text-slate-900">
+              {currencyFormatter.format(totalContributionAmount)}
+            </p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-slate-500">Active goals</p>
+            <p className="text-lg font-semibold text-slate-900">{activeGoalCount}</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-slate-500">Next deadline</p>
+            <span className="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-sm font-medium text-primary-700">
+              {deadlineLabel}
+            </span>
+          </div>
+        </div>
+      </section>
 
-          <section aria-labelledby="goal-list" className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <h2 id="goal-list" className="text-xl font-semibold text-slate-900">
-                Active plans
-              </h2>
-              <p className="text-sm text-slate-600">Compare what each commitment needs every month to stay on pace.</p>
-            </div>
+      <section aria-labelledby="goal-list" className="space-y-4">
+        <div className="flex flex-col gap-1">
+          <h2 id="goal-list" className="text-xl font-semibold text-slate-900">
+            Active plans
+          </h2>
+          <p className="text-sm text-slate-600">Compare what each commitment needs every month to stay on pace.</p>
+        </div>
 
-            {isLoading ? (
-              <GoalListSkeleton />
-            ) : goals.length > 0 ? (
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {goals.map((goal) => (
-                  <GoalCard key={goal.id} {...goal} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No goals yet"
-                description="Create your first goal to see how much to save each month."
-                actionLabel="Create your first goal"
-                icon={
-                  <svg aria-hidden="true" viewBox="0 0 120 80" className="h-20 w-28 text-slate-300" role="img">
-                    <rect x="10" y="20" width="100" height="40" rx="12" className="fill-current opacity-30" />
-                    <path d="M24 40h72" className="stroke-current" strokeWidth="6" strokeLinecap="round" opacity="0.6" />
-                    <path d="M60 24v32" className="stroke-current" strokeWidth="6" strokeLinecap="round" opacity="0.6" />
-                  </svg>
-                }
-              />
-            )}
-          </section>
-        </>
-      )}
+        {goals.length > 0 ? (
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {goals.map((goal) => (
+              <GoalCard key={goal.id} {...goal} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No goals yet"
+            description="Create your first goal to see how much to save each month."
+            actionLabel="Create your first goal"
+            icon={
+              <svg aria-hidden="true" viewBox="0 0 120 80" className="h-20 w-28 text-slate-300" role="img">
+                <rect x="10" y="20" width="100" height="40" rx="12" className="fill-current opacity-30" />
+                <path d="M24 40h72" className="stroke-current" strokeWidth="6" strokeLinecap="round" opacity="0.6" />
+                <path d="M60 24v32" className="stroke-current" strokeWidth="6" strokeLinecap="round" opacity="0.6" />
+              </svg>
+            }
+          />
+        )}
+      </section>
     </div>
   );
 }
