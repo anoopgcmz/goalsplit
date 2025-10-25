@@ -39,9 +39,24 @@ export async function DELETE(
     const goalId = parseObjectId(id);
     const memberId = parseObjectId(userId);
 
-    const goal = await GoalModel.findById(goalId);
+    const goal = await GoalModel.findOne({ _id: goalId, ownerId: actingUserId });
 
     if (!goal) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "Only the owner can remove collaborators from this goal.",
+          403,
+          {
+            hint: "Ask the goal owner to manage members for you.",
+            logLevel: "warn",
+            context: { goalId: id, memberId: userId, operation: "remove-member" },
+          },
+        );
+      }
+
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have been removed or you might not have access.",
         logLevel: "info",
@@ -50,20 +65,6 @@ export async function DELETE(
     }
 
     const normalizedOwnerId = objectIdToString(goal.ownerId);
-    const normalizedActingUserId = objectIdToString(actingUserId);
-
-    if (normalizedOwnerId !== normalizedActingUserId) {
-      return createErrorResponse(
-        "GOAL_FORBIDDEN",
-        "Only the owner can remove collaborators from this goal.",
-        403,
-        {
-          hint: "Ask the goal owner to manage members for you.",
-          logLevel: "warn",
-          context: { goalId: id, memberId: userId, operation: "remove-member" },
-        },
-      );
-    }
 
     const normalizedMemberId = objectIdToString(memberId);
 
