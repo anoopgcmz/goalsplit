@@ -122,6 +122,7 @@ export default function SharedAcceptPage(): JSX.Element {
       const response = await fetch(`/api/shared/accept?token=${encodeURIComponent(token)}`, {
         headers: { Accept: "application/json" },
         signal: controller.signal,
+        credentials: "include",
       });
 
       if (!response.ok) {
@@ -170,6 +171,7 @@ export default function SharedAcceptPage(): JSX.Element {
       try {
         const response = await fetch("/api/me", {
           headers: { Accept: "application/json" },
+          credentials: "include",
         });
 
         if (!isMounted) {
@@ -226,6 +228,7 @@ export default function SharedAcceptPage(): JSX.Element {
           Accept: "application/json",
         },
         body: JSON.stringify({ token }),
+        credentials: "include",
       });
 
       if (!response.ok) {
