@@ -17,14 +17,14 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
 
     const userId = userIdOrResponse;
+    await dbConnect();
+
     const query = parseGoalListQuery(request);
 
     const filter = {
@@ -81,13 +81,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const body: unknown = await request.json();
     const parsedBody = CreateGoalInputSchema.parse(body);
