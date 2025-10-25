@@ -47,6 +47,8 @@ type AuthStatus = "checking" | "authenticated" | "unauthenticated";
 
 type AcceptStatus = "idle" | "loading" | "error";
 
+const AUTO_JOIN_STORAGE_KEY = "sharedAccept:autoJoin";
+
 const formatCurrency = (value: number, currency: string) => {
   try {
     return new Intl.NumberFormat("en-US", {
@@ -89,6 +91,7 @@ export default function SharedAcceptPage(): JSX.Element {
   const [acceptStatus, setAcceptStatus] = useState<AcceptStatus>("idle");
   const [acceptError, setAcceptError] = useState("");
   const [acceptedGoal, setAcceptedGoal] = useState<GoalSummary | null>(null);
+  const [autoJoinState, setAutoJoinState] = useState<"idle" | "pending" | "completed">("idle");
   const inviteAbortRef = useRef<AbortController | null>(null);
 
   const loginHref = useMemo(() => {
@@ -212,11 +215,51 @@ export default function SharedAcceptPage(): JSX.Element {
     };
   }, [loadInvite]);
 
-  const handleJoinGoal = async () => {
+  useEffect(() => {
+    if (typeof window === "undefined" || !token || autoJoinState !== "idle") {
+      return;
+    }
+
+    const storedToken = window.sessionStorage.getItem(AUTO_JOIN_STORAGE_KEY);
+
+    if (storedToken === token) {
+      setAutoJoinState("pending");
+    }
+  }, [token, autoJoinState]);
+
+  useEffect(() => {
+    if (
+      autoJoinState !== "pending" ||
+      authStatus !== "authenticated" ||
+      viewState !== "valid" ||
+      !invite ||
+      acceptStatus === "loading"
+    ) {
+      return;
+    }
+
+    void handleJoinGoal();
+  }, [autoJoinState, authStatus, viewState, invite, acceptStatus, handleJoinGoal]);
+
+  useEffect(() => {
+    if (viewState !== "invalid" || typeof window === "undefined") {
+      return;
+    }
+
+    window.sessionStorage.removeItem(AUTO_JOIN_STORAGE_KEY);
+    setAutoJoinState("completed");
+  }, [viewState]);
+
+  const handleJoinGoal = useCallback(async () => {
     if (!token || !invite || acceptStatus === "loading") {
       return;
     }
 
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(AUTO_JOIN_STORAGE_KEY);
+    }
+
+    setAutoJoinState("completed");
     setAcceptStatus("loading");
     setAcceptError("");
 
@@ -253,11 +296,14 @@ export default function SharedAcceptPage(): JSX.Element {
       setAcceptedGoal({ id: payload.goal.id, title: payload.goal.title });
       setViewState("accepted");
       setAcceptStatus("idle");
+      setAcceptError("");
       publish({
         title: "Joined goal",
         description: `You’re now collaborating on “${payload.goal.title}”.`,
         variant: "success",
       });
+      router.replace(`/goals/${payload.goal.id}`);
+      router.refresh();
     } catch (error) {
       if ((error as { name?: string }).name === "AbortError") {
         return;
@@ -270,9 +316,13 @@ export default function SharedAcceptPage(): JSX.Element {
         variant: "error",
       });
     }
-  };
+  }, [token, invite, acceptStatus, publish, router]);
 
   const handleLogin = () => {
+    if (token && typeof window !== "undefined") {
+      window.sessionStorage.setItem(AUTO_JOIN_STORAGE_KEY, token);
+      setAutoJoinState("pending");
+    }
     router.push(loginHref);
   };
 

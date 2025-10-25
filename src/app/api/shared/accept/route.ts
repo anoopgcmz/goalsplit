@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { ZodError, z } from "zod";
 
 import { dbConnect } from "@/lib/mongo";
@@ -17,6 +18,7 @@ import {
   serializeGoal,
 } from "../../goals/utils";
 import { GoalResponseSchema } from "../../goals/schemas";
+import { SESSION_COOKIE_NAME, validateSessionToken } from "@/lib/auth/session";
 
 const InviteTokenSchema = z.string().trim().min(1, "Invitation token is required");
 
@@ -50,11 +52,14 @@ const normaliseEmail = (email: string) => email.trim().toLowerCase();
 
 export async function GET(request: NextRequest) {
   try {
-    const userIdOrResponse = requireUserId(request);
-    if (isNextResponse(userIdOrResponse)) {
-      return userIdOrResponse;
+    const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const validation = validateSessionToken(sessionToken);
+    let userId: Types.ObjectId | null = null;
+
+    if (validation.success && Types.ObjectId.isValid(validation.session.userId)) {
+      userId = new Types.ObjectId(validation.session.userId);
     }
-    const userId = userIdOrResponse;
+
     await dbConnect();
 
     const rawToken = request.nextUrl.searchParams.get("token") ?? "";
@@ -99,7 +104,7 @@ export async function GET(request: NextRequest) {
     const [goal, inviter, user] = await Promise.all([
       GoalModel.findById(invite.goalId),
       UserModel.findById(invite.createdBy),
-      UserModel.findById(userId),
+      userId ? UserModel.findById(userId) : Promise.resolve(null),
     ]);
 
     if (!goal) {
@@ -114,7 +119,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (!user) {
+    if (userId && !user) {
       return createErrorResponse("GOAL_UNAUTHORIZED", "We could not verify your account for this invitation.", 401, {
         hint: "Please sign in again and retry the link.",
         logLevel: "warn",
@@ -122,25 +127,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (normaliseEmail(user.email) !== normaliseEmail(invite.email)) {
-      return createErrorResponse("GOAL_FORBIDDEN", "This invitation was sent to a different email address.", 403, {
-        hint: "Ask the goal owner to invite your current email.",
-        logLevel: "warn",
-        context: { inviteId: invite._id.toString(), operation: "preview-invite" },
-      });
-    }
+    if (user) {
+      if (normaliseEmail(user.email) !== normaliseEmail(invite.email)) {
+        return createErrorResponse("GOAL_FORBIDDEN", "This invitation was sent to a different email address.", 403, {
+          hint: "Ask the goal owner to invite your current email.",
+          logLevel: "warn",
+          context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+        });
+      }
 
-    const normalizedUserId = objectIdToString(userId);
-    const isAlreadyMember = goal.members.some((member) => {
-      return objectIdToString(member.userId) === normalizedUserId;
-    });
-
-    if (isAlreadyMember) {
-      return createErrorResponse("GOAL_CONFLICT", "You already collaborate on this goal.", 409, {
-        hint: "You can view the goal from your dashboard.",
-        logLevel: "info",
-        context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+      const normalizedUserId = objectIdToString(user._id);
+      const isAlreadyMember = goal.members.some((member) => {
+        return objectIdToString(member.userId) === normalizedUserId;
       });
+
+      if (isAlreadyMember) {
+        return createErrorResponse("GOAL_CONFLICT", "You already collaborate on this goal.", 409, {
+          hint: "You can view the goal from your dashboard.",
+          logLevel: "info",
+          context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+        });
+      }
     }
 
     const payload = AcceptInvitePreviewResponseSchema.parse({
