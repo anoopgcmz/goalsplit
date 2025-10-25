@@ -21,5 +21,6 @@ export type ApiError = z.infer<typeof ApiErrorSchema>;
 
 export const ApiErrorResponseSchema = z.object({
   error: ApiErrorSchema,
+  details: z.unknown().optional(),
 });
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;

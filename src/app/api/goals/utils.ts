@@ -33,6 +33,7 @@ interface ErrorOptions {
   logLevel?: "debug" | "info" | "warn" | "error" | "none";
   context?: Record<string, unknown>;
   error?: unknown;
+  details?: unknown;
 }
 
 export const objectIdToString = (value: Types.ObjectId | string) =>
@@ -203,6 +204,7 @@ export const createErrorResponse = (
       hint: options.hint,
       backoff: options.backoff,
     },
+    details: options.details,
   });
 
   if (options.logLevel !== "none") {
@@ -226,11 +228,17 @@ export const handleZodError = (error: unknown) => {
     return createErrorResponse(
       "GOAL_VALIDATION_ERROR",
       `Please update the highlighted fields: ${message}`,
-      400,
+      422,
       {
         hint: "Review the goal details and try again.",
         logLevel: "warn",
         context: { issues: error.errors.length },
+        details: {
+          issues: error.errors.map((issue) => ({
+            path: issue.path,
+            message: issue.message,
+          })),
+        },
       },
     );
   }

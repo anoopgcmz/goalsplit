@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { createGoal } from "@/lib/api/goals";
-import { isApiError } from "@/lib/api/request";
+import { ApiError as HttpApiError } from "@/lib/http";
 
 const currencies = [
   { label: "Indian Rupee (INR)", value: "INR" },
@@ -88,24 +88,84 @@ function validateForm(state: FormState): FormErrors {
   return errors;
 }
 
+function extractFieldErrors(details: unknown): FormErrors {
+  if (!details || typeof details !== "object") {
+    return {};
+  }
+
+  const issues = (details as { issues?: unknown }).issues;
+  if (!Array.isArray(issues)) {
+    return {};
+  }
+
+  return issues.reduce<FormErrors>((acc, issue) => {
+    if (!issue || typeof issue !== "object") {
+      return acc;
+    }
+
+    const path = Array.isArray((issue as { path?: unknown }).path)
+      ? ((issue as { path?: unknown }).path as unknown[])
+      : [];
+    const message = (issue as { message?: unknown }).message;
+    const field = path[0];
+
+    if (typeof field === "string" && typeof message === "string" && field in defaultState) {
+      acc[field as keyof FormState] = message;
+    }
+
+    return acc;
+  }, {});
+}
+
 export default function NewGoalPage(): JSX.Element {
   const router = useRouter();
   const [state, setState] = useState<FormState>(defaultState);
   const [touched, setTouched] = useState<TouchedState>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiErrors, setApiErrors] = useState<FormErrors>({});
   const { publish } = useToast();
 
-  const errors = useMemo(() => validateForm(state), [state]);
+  const errors = useMemo(() => {
+    const baseErrors = validateForm(state);
+    const merged: FormErrors = { ...baseErrors };
+
+    (Object.keys(apiErrors) as (keyof FormState)[]).forEach((field) => {
+      const message = apiErrors[field];
+      if (message) {
+        merged[field] = message;
+      }
+    });
+
+    return merged;
+  }, [state, apiErrors]);
 
   const showError = (field: keyof FormState) => Boolean(touched[field] && errors[field]);
 
   const handleChange = (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = event.target.value;
     setState((prev) => ({ ...prev, [field]: value }));
+    setApiErrors((prev) => {
+      if (!prev[field]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleRadioChange = (field: "compounding" | "contributionFrequency", value: Compounding | ContributionFrequency) => {
     setState((prev) => ({ ...prev, [field]: value }));
+    setApiErrors((prev) => {
+      if (!prev[field]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const handleBlur = (field: keyof FormState) => () => {
@@ -139,6 +199,7 @@ export default function NewGoalPage(): JSX.Element {
     }
 
     setIsSubmitting(true);
+    setApiErrors({});
 
     const payload: CreateGoalInput = {
       title: state.title.trim(),
@@ -154,20 +215,46 @@ export default function NewGoalPage(): JSX.Element {
 
     const submit = async () => {
       try {
-        await createGoal(payload);
+        const goal = await createGoal(payload);
 
         publish({
           title: "Goal created",
           description: "We saved your goal setup. You can refine the plan anytime.",
           variant: "success",
         });
-        router.push("/goals");
+        router.replace(`/goals/${goal.id}`);
       } catch (error) {
+        if (error instanceof HttpApiError) {
+          if (error.status === 422) {
+            const fieldErrors = extractFieldErrors(error.details);
+
+            if (Object.keys(fieldErrors).length > 0) {
+              setApiErrors(fieldErrors);
+              setTouched((prev) => {
+                const next = { ...prev };
+                (Object.keys(fieldErrors) as (keyof FormState)[]).forEach((field) => {
+                  next[field] = true;
+                });
+                return next;
+              });
+              return;
+            }
+          }
+
+          publish({
+            title: "We couldn't save that goal",
+            description: error.message,
+            variant: "error",
+          });
+          return;
+        }
+
         publish({
           title: "We couldn't save that goal",
-          description: isApiError(error)
-            ? error.hint ?? error.message
-            : "Something unexpected happened. Please try again.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Something unexpected happened. Please try again.",
           variant: "error",
         });
       } finally {
