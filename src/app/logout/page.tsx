@@ -33,7 +33,7 @@ export default function LogoutPage(): JSX.Element {
           description: "You logged out successfully.",
           variant: "success",
         });
-        router.push("/login");
+        router.replace("/login");
         router.refresh();
       })
       .catch(() => {
