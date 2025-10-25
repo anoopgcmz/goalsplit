@@ -15,7 +15,10 @@ export function Card(props: CardProps): JSX.Element {
 
   return (
     <article
-      className={cn("rounded-2xl border border-slate-200 bg-white p-6 shadow-md", className)}
+      className={cn(
+        "rounded-2xl border border-slate-200 bg-white p-6 shadow-md transition-shadow motion-safe:transition-transform motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-lg motion-safe:focus-within:-translate-y-0.5 motion-safe:focus-within:shadow-lg motion-reduce:transition-none motion-reduce:transform-none",
+        className,
+      )}
       {...rest}
     />
   );
