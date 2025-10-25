@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent, KeyboardEvent, TransitionEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   requiredPaymentForFutureValue,
 } from "@/lib/financial";
 import { useFormatters } from "@/lib/hooks/use-formatters";
+import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 import { mockGoalsAdapter } from "@/lib/mocks/goals";
 import { mockAuthAdapter } from "@/lib/mocks/auth";
 
@@ -261,6 +262,9 @@ const ChartSection = (props: {
   const { plan, scenario, formatCurrency, formatPercent } = props;
   const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
   const chartId = "goal-plan-chart";
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const linePathRef = useRef<SVGPathElement | null>(null);
+  const areaPathRef = useRef<SVGPathElement | null>(null);
 
   const maxValue = useMemo(() => {
     const totals = scenario.points.map((point) => point.total);
@@ -281,6 +285,61 @@ const ChartSection = (props: {
       })
       .join(" ");
   }, [scenario.points, maxValue]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      const lineElement = linePathRef.current;
+      const areaElement = areaPathRef.current;
+
+      if (lineElement) {
+        lineElement.style.removeProperty("strokeDasharray");
+        lineElement.style.removeProperty("strokeDashoffset");
+        lineElement.style.removeProperty("transition");
+      }
+
+      if (areaElement) {
+        areaElement.style.removeProperty("opacity");
+        areaElement.style.removeProperty("transition");
+      }
+
+      return;
+    }
+
+    const lineElement = linePathRef.current;
+
+    if (!lineElement) {
+      return;
+    }
+
+    const areaElement = areaPathRef.current;
+    const length = lineElement.getTotalLength();
+    lineElement.style.strokeDasharray = `${length}`;
+    lineElement.style.strokeDashoffset = `${length}`;
+    lineElement.style.transition = "stroke-dashoffset 600ms ease-out";
+
+    if (areaElement) {
+      areaElement.style.opacity = "0";
+      areaElement.style.transition = "opacity 600ms ease-out";
+    }
+
+    const raf = requestAnimationFrame(() => {
+      lineElement.style.strokeDashoffset = "0";
+      if (areaElement) {
+        areaElement.style.opacity = "1";
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      lineElement.style.removeProperty("strokeDasharray");
+      lineElement.style.removeProperty("strokeDashoffset");
+      lineElement.style.removeProperty("transition");
+      if (areaElement) {
+        areaElement.style.removeProperty("opacity");
+        areaElement.style.removeProperty("transition");
+      }
+    };
+  }, [pathData, prefersReducedMotion]);
 
   return (
     <section className="space-y-4" aria-labelledby="projection-title">
@@ -313,8 +372,15 @@ const ChartSection = (props: {
             <rect width="100" height="100" fill="#eff6ff" />
             {pathData ? (
               <Fragment>
-                <path d={`${pathData}`} fill="none" stroke="#1d4ed8" strokeWidth="1.5" />
                 <path
+                  ref={linePathRef}
+                  d={`${pathData}`}
+                  fill="none"
+                  stroke="#1d4ed8"
+                  strokeWidth="1.5"
+                />
+                <path
+                  ref={areaPathRef}
                   d={`${pathData} L100,100 L0,100 Z`}
                   fill="url(#projection-line)"
                   stroke="none"
@@ -474,6 +540,10 @@ const ScenarioCompare = (props: {
   const [isOpen, setIsOpen] = useState(false);
   const [ratePercent, setRatePercent] = useState(baseScenario.ratePercent);
   const [timelineOffsetMonths, setTimelineOffsetMonths] = useState(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [shouldRenderControls, setShouldRenderControls] = useState(isOpen);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [contentHeight, setContentHeight] = useState(0);
 
   const adjustedScenario = useMemo(
     () => calculateScenario(plan, { ratePercent, timelineOffsetMonths }),
@@ -487,6 +557,230 @@ const ScenarioCompare = (props: {
   const handleTimelineChange = (delta: number) => {
     setTimelineOffsetMonths((prev) => clamp(prev + delta, minAdjustment, maxAdjustment));
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRenderControls(true);
+      return;
+    }
+
+    if (prefersReducedMotion) {
+      setShouldRenderControls(false);
+    }
+  }, [isOpen, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (!shouldRenderControls || prefersReducedMotion) {
+      return;
+    }
+
+    const node = contentRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const updateHeight = () => {
+      setContentHeight(node.scrollHeight);
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    if (typeof window !== "undefined") {
+      const timeout = window.setTimeout(updateHeight, 0);
+      return () => window.clearTimeout(timeout);
+    }
+
+    return undefined;
+  }, [shouldRenderControls, prefersReducedMotion, adjustedScenario]);
+
+  const handleDrawerTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (
+      prefersReducedMotion ||
+      isOpen ||
+      event.target !== event.currentTarget ||
+      event.propertyName !== "max-height"
+    ) {
+      return;
+    }
+
+    setShouldRenderControls(false);
+  };
+
+  const controlsContent = (
+    <div ref={prefersReducedMotion ? undefined : contentRef} className="space-y-6 p-6">
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between text-sm font-medium text-slate-700">
+              <label
+                htmlFor="rate-slider"
+                className="flex items-center gap-2 text-sm font-medium text-slate-700"
+              >
+                <span>Expected return rate</span>
+                <InfoTooltip
+                  id="scenario-expected-return"
+                  content="Try 6–10% to compare scenarios."
+                  label="Learn how to pick an expected return"
+                />
+              </label>
+              <span>
+                {formatPercent(ratePercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}
+              </span>
+            </div>
+            <input
+              id="rate-slider"
+              type="range"
+              min={0}
+              max={20}
+              step={0.5}
+              value={ratePercent}
+              onChange={(event) => setRatePercent(Number(event.target.value))}
+              className="mt-2 w-full"
+              aria-valuemin={0}
+              aria-valuemax={20}
+              aria-valuenow={ratePercent}
+            />
+            <p className="mt-1 text-xs text-slate-500">Try different returns to see how the plan changes.</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700">Timeline adjustment</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="button" onClick={() => handleTimelineChange(-12)} variant="secondary">
+                −12 months
+              </Button>
+              <Button type="button" onClick={() => handleTimelineChange(12)} variant="secondary">
+                +12 months
+              </Button>
+              <Button type="button" onClick={() => handleTimelineChange(-1)} variant="secondary">
+                −1 month
+              </Button>
+              <Button type="button" onClick={() => handleTimelineChange(1)} variant="secondary">
+                +1 month
+              </Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <label htmlFor="timeline-input" className="text-sm text-slate-600">
+                Offset (months)
+              </label>
+              <input
+                id="timeline-input"
+                type="number"
+                value={timelineOffsetMonths}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setTimelineOffsetMonths(clamp(next, minAdjustment, maxAdjustment));
+                }}
+                className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm"
+              />
+            </div>
+            <p className="text-xs text-slate-500">
+              Current target: {formatDate(baseTargetDate)}. Adjustment moves this date to {formatDate(adjustedScenario.targetDate)}.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+          <p className="font-semibold text-slate-900">Compare numbers</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Original</p>
+              <ScenarioValue
+                label={`Invest per ${frequencyToLabel(plan.assumptions.contributionFrequency)}`}
+                value={
+                  Number.isFinite(baseScenario.perPeriod)
+                    ? formatCurrency(roundCurrency(baseScenario.perPeriod))
+                    : "Not available"
+                }
+                secondary={`Rate ${formatPercent(baseScenario.ratePercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} • Horizon ${formatHorizon({ years: baseScenario.years, months: baseScenario.months })}`}
+              />
+              <ScenarioValue
+                label="Lump sum today"
+                value={
+                  Number.isFinite(baseScenario.lumpSum)
+                    ? formatCurrency(roundCurrency(baseScenario.lumpSum))
+                    : "Not available"
+                }
+                secondary={`Target ${formatDate(new Date(plan.goal.targetDate))}`}
+              />
+              <ScenarioValue
+                label="Your contributions"
+                value={formatCurrency(roundCurrency(baseScenario.contributionsTotal))}
+                secondary={`${formatPercent(baseScenario.contributionPercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} of goal`}
+              />
+              <ScenarioValue
+                label="Projected growth"
+                value={formatCurrency(roundCurrency(baseScenario.growthTotal))}
+                secondary={`${formatPercent(baseScenario.growthPercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} of goal`}
+              />
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Adjusted</p>
+              <ScenarioValue
+                label={`Invest per ${frequencyToLabel(plan.assumptions.contributionFrequency)}`}
+                value={
+                  Number.isFinite(adjustedScenario.perPeriod)
+                    ? formatCurrency(roundCurrency(adjustedScenario.perPeriod))
+                    : "Not available"
+                }
+                secondary={`Rate ${formatPercent(adjustedScenario.ratePercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} • Horizon ${formatHorizon({
+                  years: adjustedScenario.years,
+                  months: adjustedScenario.months,
+                })}`}
+              />
+              <ScenarioValue
+                label="Lump sum today"
+                value={
+                  Number.isFinite(adjustedScenario.lumpSum)
+                    ? formatCurrency(roundCurrency(adjustedScenario.lumpSum))
+                    : "Not available"
+                }
+                secondary={`Target ${formatDate(adjustedScenario.targetDate)}`}
+              />
+              <ScenarioValue
+                label="Your contributions"
+                value={formatCurrency(roundCurrency(adjustedScenario.contributionsTotal))}
+                secondary={`${formatPercent(adjustedScenario.contributionPercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} of goal`}
+              />
+              <ScenarioValue
+                label="Projected growth"
+                value={formatCurrency(roundCurrency(adjustedScenario.growthTotal))}
+                secondary={`${formatPercent(adjustedScenario.growthPercent, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })} of goal`}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <section className="space-y-4" aria-labelledby="scenario-compare-title">
@@ -510,177 +804,32 @@ const ScenarioCompare = (props: {
         </Button>
       </div>
 
-      {isOpen ? (
-        <div
-          id="scenario-controls"
-          className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-        >
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm font-medium text-slate-700">
-                  <label
-                    htmlFor="rate-slider"
-                    className="flex items-center gap-2 text-sm font-medium text-slate-700"
-                  >
-                    <span>Expected return rate</span>
-                    <InfoTooltip
-                      id="scenario-expected-return"
-                      content="Try 6–10% to compare scenarios."
-                      label="Learn how to pick an expected return"
-                    />
-                  </label>
-                  <span>
-                    {formatPercent(ratePercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })}
-                  </span>
-                </div>
-                <input
-                  id="rate-slider"
-                  type="range"
-                  min={0}
-                  max={20}
-                  step={0.5}
-                  value={ratePercent}
-                  onChange={(event) => setRatePercent(Number(event.target.value))}
-                  className="mt-2 w-full"
-                  aria-valuemin={0}
-                  aria-valuemax={20}
-                  aria-valuenow={ratePercent}
-                />
-                <p className="mt-1 text-xs text-slate-500">Try different returns to see how the plan changes.</p>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-slate-700">Timeline adjustment</p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button type="button" onClick={() => handleTimelineChange(-12)} variant="secondary">
-                    −12 months
-                  </Button>
-                  <Button type="button" onClick={() => handleTimelineChange(12)} variant="secondary">
-                    +12 months
-                  </Button>
-                  <Button type="button" onClick={() => handleTimelineChange(-1)} variant="secondary">
-                    −1 month
-                  </Button>
-                  <Button type="button" onClick={() => handleTimelineChange(1)} variant="secondary">
-                    +1 month
-                  </Button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label htmlFor="timeline-input" className="text-sm text-slate-600">
-                    Offset (months)
-                  </label>
-                  <input
-                    id="timeline-input"
-                    type="number"
-                    value={timelineOffsetMonths}
-                    onChange={(event) => {
-                      const next = Number(event.target.value);
-                      setTimelineOffsetMonths(clamp(next, minAdjustment, maxAdjustment));
-                    }}
-                    className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm"
-                  />
-                </div>
-                <p className="text-xs text-slate-500">
-                  Current target: {formatDate(baseTargetDate)}. Adjustment moves this date to {formatDate(adjustedScenario.targetDate)}.
-                </p>
-              </div>
+      {prefersReducedMotion
+        ? isOpen && (
+            <div
+              id="scenario-controls"
+              className="rounded-2xl border border-slate-200 bg-white shadow-sm"
+            >
+              {controlsContent}
             </div>
-
-            <div className="grid gap-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">Compare numbers</p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Original</p>
-                  <ScenarioValue
-                    label={`Invest per ${frequencyToLabel(plan.assumptions.contributionFrequency)}`}
-                    value={
-                      Number.isFinite(baseScenario.perPeriod)
-                        ? formatCurrency(roundCurrency(baseScenario.perPeriod))
-                        : "Not available"
-                    }
-                    secondary={`Rate ${formatPercent(baseScenario.ratePercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })} • Horizon ${formatHorizon({ years: baseScenario.years, months: baseScenario.months })}`}
-                  />
-                  <ScenarioValue
-                    label="Lump sum today"
-                    value={
-                      Number.isFinite(baseScenario.lumpSum)
-                        ? formatCurrency(roundCurrency(baseScenario.lumpSum))
-                        : "Not available"
-                    }
-                    secondary={`Target ${formatDate(new Date(plan.goal.targetDate))}`}
-                  />
-                  <ScenarioValue
-                    label="Your contributions"
-                    value={formatCurrency(roundCurrency(baseScenario.contributionsTotal))}
-                    secondary={`${formatPercent(baseScenario.contributionPercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })} of goal`}
-                  />
-                  <ScenarioValue
-                    label="Projected growth"
-                    value={formatCurrency(roundCurrency(baseScenario.growthTotal))}
-                    secondary={`${formatPercent(baseScenario.growthPercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })} of goal`}
-                  />
-                </div>
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Adjusted</p>
-                  <ScenarioValue
-                    label={`Invest per ${frequencyToLabel(plan.assumptions.contributionFrequency)}`}
-                    value={
-                      Number.isFinite(adjustedScenario.perPeriod)
-                        ? formatCurrency(roundCurrency(adjustedScenario.perPeriod))
-                        : "Not available"
-                    }
-                    secondary={`Rate ${formatPercent(adjustedScenario.ratePercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })} • Horizon ${formatHorizon({
-                      years: adjustedScenario.years,
-                      months: adjustedScenario.months,
-                    })}`}
-                  />
-                  <ScenarioValue
-                    label="Lump sum today"
-                    value={
-                      Number.isFinite(adjustedScenario.lumpSum)
-                        ? formatCurrency(roundCurrency(adjustedScenario.lumpSum))
-                        : "Not available"
-                    }
-                    secondary={`Target ${formatDate(adjustedScenario.targetDate)}`}
-                  />
-                  <ScenarioValue
-                    label="Your contributions"
-                    value={formatCurrency(roundCurrency(adjustedScenario.contributionsTotal))}
-                    secondary={`${formatPercent(adjustedScenario.contributionPercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })} of goal`}
-                  />
-                  <ScenarioValue
-                    label="Projected growth"
-                    value={formatCurrency(roundCurrency(adjustedScenario.growthTotal))}
-                    secondary={`${formatPercent(adjustedScenario.growthPercent, {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    })} of goal`}
-                  />
-                </div>
-              </div>
+          )
+        : shouldRenderControls && (
+            <div
+              id="scenario-controls"
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+              style={{
+                maxHeight: isOpen ? `${contentHeight}px` : "0px",
+                opacity: isOpen ? 1 : 0,
+                transform: isOpen ? "translateY(0)" : "translateY(-8px)",
+                transition: "max-height 320ms ease, opacity 220ms ease, transform 320ms ease",
+                pointerEvents: isOpen ? "auto" : "none",
+              }}
+              onTransitionEnd={handleDrawerTransitionEnd}
+              aria-hidden={!isOpen}
+            >
+              {controlsContent}
             </div>
-          </div>
-        </div>
-      ) : null}
+          )}
     </section>
   );
 };

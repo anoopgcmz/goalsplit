@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GoalSummary } from "@/lib/mocks/goals";
 import { mockGoalsAdapter } from "@/lib/mocks/goals";
+import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -97,6 +98,31 @@ function GoalCard(props: GoalSummary): JSX.Element {
   const relativeDue = getRelativeDueLabel(targetDate);
   const formattedTargetDate = dateFormatter.format(new Date(targetDate));
   const cappedProgress = Math.min(Math.max(progress, 0), 100);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const hasAnimatedRef = useRef(prefersReducedMotion);
+  const [animatedProgress, setAnimatedProgress] = useState(
+    prefersReducedMotion ? cappedProgress : 0,
+  );
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setAnimatedProgress(cappedProgress);
+      hasAnimatedRef.current = true;
+      return;
+    }
+
+    if (!hasAnimatedRef.current) {
+      hasAnimatedRef.current = true;
+      const raf = requestAnimationFrame(() => {
+        setAnimatedProgress(cappedProgress);
+      });
+
+      return () => cancelAnimationFrame(raf);
+    }
+
+    setAnimatedProgress(cappedProgress);
+    return undefined;
+  }, [cappedProgress, prefersReducedMotion]);
 
   return (
     <Card className="flex h-full flex-col gap-5">
@@ -159,8 +185,8 @@ function GoalCard(props: GoalSummary): JSX.Element {
         </div>
         <div className="h-2 w-full rounded-full bg-slate-100">
           <div
-            className="h-full rounded-full bg-primary-500 transition-[width] duration-500 ease-out"
-            style={{ width: `${cappedProgress}%` }}
+            className="h-full rounded-full bg-primary-500 transition-[width] duration-500 ease-out motion-reduce:transition-none"
+            style={{ width: `${animatedProgress}%` }}
             aria-hidden="true"
           />
         </div>
