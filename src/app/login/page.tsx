@@ -7,13 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RequestOtpInputSchema, VerifyOtpInputSchema } from "@/app/api/auth/schemas";
 import { requestOtp, verifyOtp } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/request";
 
 const CODE_LENGTH = 6;
 const OTP_EXPIRY_SECONDS = 10 * 60;
-const EMAIL_PATTERN = /^(?:[a-zA-Z0-9_'^&/+-])+(?:\.(?:[a-zA-Z0-9_'^&/+-])+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
-
 type StatusType = "idle" | "loading" | "success" | "error" | "rate-limit";
 
 interface StatusState {
@@ -78,15 +77,22 @@ export default function LoginPage(): JSX.Element {
 
   const sendOtp = useCallback(
     async (mode: "initial" | "resend" = "initial") => {
-      const trimmedEmail = email.trim().toLowerCase();
       setEmailError("");
       setStatus({ type: "idle", message: "" });
 
-      if (!EMAIL_PATTERN.test(trimmedEmail)) {
-        const message = "Enter a valid email address.";
+      const validation = RequestOtpInputSchema.safeParse({ email });
+
+      if (!validation.success) {
+        const issue = validation.error.issues[0];
+        const message = issue?.message ?? "Enter a valid email address.";
         setEmailError(message);
         setStatus({ type: "error", message });
         return;
+      }
+
+      const normalizedEmail = validation.data.email;
+      if (normalizedEmail !== email) {
+        setEmail(normalizedEmail);
       }
 
       requestAbortRef.current?.abort();
@@ -100,7 +106,7 @@ export default function LoginPage(): JSX.Element {
       });
 
       try {
-        await requestOtp({ email: trimmedEmail }, controller.signal);
+        await requestOtp({ email: normalizedEmail }, controller.signal);
         if (controller.signal.aborted) {
           return;
         }
@@ -154,15 +160,29 @@ export default function LoginPage(): JSX.Element {
     setCodeError("");
     setStatus({ type: "idle", message: "" });
 
-    if (code.trim().length < CODE_LENGTH) {
-      const message = "Enter the 6-digit code from your email.";
-      setCodeError(message);
+    const validation = VerifyOtpInputSchema.safeParse({ email, code });
+
+    if (!validation.success) {
+      const emailIssue = validation.error.issues.find((issue) => issue.path[0] === "email");
+      const codeIssue = validation.error.issues.find((issue) => issue.path[0] === "code");
+      const message = codeIssue?.message ?? emailIssue?.message ?? "Enter the 6-digit code from your email.";
+
+      if (emailIssue) {
+        setEmailError(emailIssue.message);
+      }
+
+      if (codeIssue) {
+        setCodeError(codeIssue.message);
+      }
+
       setStatus({ type: "error", message });
       return;
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
-    const trimmedCode = code.trim();
+    const normalized = validation.data;
+    if (normalized.email !== email) {
+      setEmail(normalized.email);
+    }
 
     verifyAbortRef.current?.abort();
     const controller = new AbortController();
@@ -172,7 +192,7 @@ export default function LoginPage(): JSX.Element {
     setStatus({ type: "loading", message: "Checking your code…" });
 
     try {
-      await verifyOtp({ email: trimmedEmail, code: trimmedCode }, controller.signal);
+      await verifyOtp(normalized, controller.signal);
       if (controller.signal.aborted) {
         return;
       }

@@ -2,12 +2,13 @@ import { randomBytes } from "crypto";
 
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { ZodError, z } from "zod";
+import { ZodError } from "zod";
 
 import { dbConnect } from "@/lib/mongo";
 import GoalModel from "@/models/goal";
 import InviteModel from "@/models/invite";
 
+import { CreateGoalInviteInputSchema } from "../../schemas";
 import {
   createErrorResponse,
   handleZodError,
@@ -15,23 +16,6 @@ import {
   parseObjectId,
   requireUserId,
 } from "../../utils";
-
-const CreateInviteInputSchema = z
-  .object({
-    email: z.string().trim().email(),
-    expiresInMinutes: z.coerce.number().int().min(1).default(10080),
-    defaultSplitPercent: z.coerce.number().min(0).max(100).default(50),
-    fixedAmount: z
-      .union([z.coerce.number().min(0), z.null()])
-      .optional()
-      .default(null),
-  })
-  .transform((value) => ({
-    email: value.email.toLowerCase(),
-    expiresInMinutes: value.expiresInMinutes,
-    defaultSplitPercent: value.defaultSplitPercent,
-    fixedAmount: value.fixedAmount ?? null,
-  }));
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -60,7 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const rawBody: unknown = await request.json();
-    const parsedBody = CreateInviteInputSchema.parse(rawBody);
+    const parsedBody = CreateGoalInviteInputSchema.parse(rawBody);
 
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + parsedBody.expiresInMinutes * 60_000);
