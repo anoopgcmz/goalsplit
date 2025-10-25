@@ -7,16 +7,16 @@ import UserModel from "@/models/user";
 interface DummyUserSeed {
   email: string;
   name: string;
-  code: string;
 }
 
 const TEN_MINUTES_IN_MS = 10 * 60 * 1000;
+const OTP_CODE = "123456";
 
 // Update this list to adjust the seed data for manual QA or demos.
 const DUMMY_USERS: DummyUserSeed[] = [
-  { email: "demo@example.com", name: "Demo User", code: "123456" },
-  { email: "alice@example.com", name: "Alice Sharma", code: "654321" },
-  { email: "bob@example.com", name: "Bob Mehta", code: "112233" },
+  { email: "demo@example.com", name: "Demo User" },
+  { email: "alice@example.com", name: "Alice Sharma" },
+  { email: "bob@example.com", name: "Bob Mehta" },
 ];
 
 const ensureDevelopmentEnvironment = () => {
@@ -36,7 +36,7 @@ const seedDummyUsers = async () => {
 
   const expiry = new Date(Date.now() + TEN_MINUTES_IN_MS);
 
-  for (const { email, name, code } of DUMMY_USERS) {
+  for (const { email, name } of DUMMY_USERS) {
     console.log(`Seeding user ${email}...`);
 
     await UserModel.updateOne(
@@ -51,22 +51,39 @@ const seedDummyUsers = async () => {
     await OtpCodeModel.updateMany({ email, consumed: false }, { $set: { consumed: true } });
 
     await OtpCodeModel.updateOne(
-      { email, code },
+      { email, code: OTP_CODE },
       {
         $set: {
           expiresAt: expiry,
           consumed: false,
         },
-        $setOnInsert: { email, code },
+        $setOnInsert: { email, code: OTP_CODE },
       },
       { upsert: true },
     );
+
+    const activeOtp = await OtpCodeModel.findOne({ email, code: OTP_CODE })
+      .select({ email: 1, code: 1, expiresAt: 1, consumed: 1 })
+      .lean();
+
+    if (!activeOtp) {
+      console.warn(
+        `  -> Warning: No OTP found for ${email}. Check unique index constraints and rerun the seed.`,
+      );
+    } else {
+      const expiresInMs = activeOtp.expiresAt.getTime() - Date.now();
+      const expiresInMinutes = Math.max(0, Math.floor(expiresInMs / 60000));
+      const expiresAtDisplay = activeOtp.expiresAt.toISOString();
+      console.log(
+        `  -> OTP ${activeOtp.code} (consumed=${activeOtp.consumed}) expires at ${expiresAtDisplay} (~${expiresInMinutes} min remaining)`,
+      );
+    }
   }
 
   console.log("\nSeed complete. You can log in using:");
-  console.log("demo@example.com  OTP 123456");
-  console.log("alice@example.com OTP 654321");
-  console.log("bob@example.com   OTP 112233");
+  for (const { email } of DUMMY_USERS) {
+    console.log(`${email} OTP ${OTP_CODE}`);
+  }
   console.log("\nRemember: codes expire 10 minutes from seeding.\n");
 };
 
