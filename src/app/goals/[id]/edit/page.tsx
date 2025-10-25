@@ -9,23 +9,24 @@ import { ApiError } from "@/lib/http";
 import EditGoalPage from "./edit-goal-page.client";
 
 interface EditGoalRouteProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default async function EditGoalRoute(props: EditGoalRouteProps): Promise<JSX.Element> {
   const { params } = props;
+  const { id } = await params;
   const user = await getUserFromCookie();
 
   if (!user) {
     redirect("/login");
   }
 
-  if (!Types.ObjectId.isValid(params.id)) {
+  if (!Types.ObjectId.isValid(id)) {
     notFound();
   }
 
   try {
-    const goal = await getGoal(params.id);
+    const goal = await getGoal(id);
 
     if (goal.ownerId !== user.id) {
       notFound();

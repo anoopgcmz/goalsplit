@@ -9,25 +9,26 @@ import { ApiError } from "@/lib/http";
 import GoalPlanPage from "./goal-plan-page";
 
 interface GoalPlanRouteProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default async function GoalPlanRoute(
   props: GoalPlanRouteProps,
 ): Promise<JSX.Element> {
   const { params } = props;
+  const { id } = await params;
   const user = await getUserFromCookie();
 
   if (!user) {
     redirect("/login");
   }
 
-  if (!Types.ObjectId.isValid(params.id)) {
+  if (!Types.ObjectId.isValid(id)) {
     notFound();
   }
 
   try {
-    const goal = await getGoal(params.id);
+    const goal = await getGoal(id);
     const normalizedUserId = user.id;
     const isOwner = goal.ownerId === normalizedUserId;
     const isMember = goal.members.some(
@@ -38,7 +39,7 @@ export default async function GoalPlanRoute(
       notFound();
     }
 
-    const plan = await getPlan(params.id);
+    const plan = await getPlan(id);
 
     return (
       <GoalPlanPage goalId={goal.id} initialPlan={plan} initialUser={user} />

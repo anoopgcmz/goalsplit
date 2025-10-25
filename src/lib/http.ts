@@ -25,6 +25,49 @@ export type ApiFetchInit<T> = RequestInit & { schema?: ZodSchema<T> };
 const NETWORK_ERROR_MESSAGE =
   "We couldn't reach the server. Check your connection and try again.";
 
+const ABSOLUTE_URL_PATTERN = /^https?:\/\//i;
+const BASE_URL_ENV_VARS = [
+  "NEXT_PUBLIC_APP_URL",
+  "NEXT_PUBLIC_SITE_URL",
+  "NEXT_PUBLIC_BASE_URL",
+  "APP_URL",
+  "SITE_URL",
+  "NEXTAUTH_URL",
+  "VERCEL_URL",
+];
+
+function resolveBaseUrl(): string {
+  for (const envVar of BASE_URL_ENV_VARS) {
+    const value = process.env[envVar];
+
+    if (!value) {
+      continue;
+    }
+
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      continue;
+    }
+
+    if (ABSOLUTE_URL_PATTERN.test(trimmedValue)) {
+      return trimmedValue;
+    }
+
+    return `https://${trimmedValue}`;
+  }
+
+  return "http://localhost:3000";
+}
+
+function resolveFetchUrl(path: string): string {
+  if (ABSOLUTE_URL_PATTERN.test(path) || typeof window !== "undefined") {
+    return path;
+  }
+
+  return new URL(path, resolveBaseUrl()).toString();
+}
+
 const ERROR_MESSAGE_BY_STATUS: Record<number, string> = {
   401: "You must be signed in to continue.",
   403: "You do not have permission to perform this action.",
@@ -189,8 +232,10 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Pro
 
   let response: Response;
 
+  const url = resolveFetchUrl(path);
+
   try {
-    response = await fetch(path, requestInit);
+    response = await fetch(url, requestInit);
   } catch (error) {
     throw new ApiError(0, NETWORK_ERROR_MESSAGE, error);
   }
