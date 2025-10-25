@@ -1,7 +1,6 @@
 import type {
   AuthUser,
   RequestOtpInput,
-  RequestOtpResponse,
   VerifyOtpInput,
   VerifyOtpResponse,
 } from "@/app/api/auth/schemas";
@@ -13,12 +12,13 @@ const json = (value: unknown) => JSON.stringify(value);
 export const requestOtp = async (
   input: RequestOtpInput,
   signal?: AbortSignal,
-): Promise<RequestOtpResponse> =>
-  fetchJson<RequestOtpResponse>("/api/auth/request-otp", {
+): Promise<void> => {
+  await fetchJson<undefined>("/api/auth/request-otp", {
     method: "POST",
     body: json(input),
     signal,
   });
+};
 
 export const verifyOtp = async (
   input: VerifyOtpInput,
