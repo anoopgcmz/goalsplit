@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "seed:dummy": "node --loader ./scripts/ts-loader.mjs scripts/seedDummyUsers.ts",
+    "seed:test-users": "ts-node --project tsconfig.json scripts/seedTestUsers.ts",
     "test:quick": "playwright test --config=playwright.quick.config.ts"
   },
   "dependencies": {
