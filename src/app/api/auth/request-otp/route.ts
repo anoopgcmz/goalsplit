@@ -5,6 +5,7 @@ import { ZodError } from "zod";
 import { dbConnect } from "@/lib/mongo";
 import OtpCodeModel from "@/models/otp-code";
 import OtpRequestCounterModel from "@/models/otp-request-counter";
+import { DEMO_OTP_CODE, DEMO_OTP_EXPIRY_MS, isDemoEmail } from "@/lib/auth/demo";
 
 import { RequestOtpInputSchema } from "../schemas";
 import {
@@ -115,6 +116,30 @@ export async function POST(request: NextRequest) {
           context: { emailHash: hashIdentifier(email) },
         },
       );
+    }
+
+    const isDemoEnvironment = process.env.NODE_ENV !== "production";
+
+    if (isDemoEnvironment && isDemoEmail(email)) {
+      await OtpCodeModel.updateMany(
+        { email, code: { $ne: DEMO_OTP_CODE }, consumed: false },
+        { consumed: true },
+      );
+
+      await OtpCodeModel.findOneAndUpdate(
+        { email },
+        {
+          $set: {
+            email,
+            code: DEMO_OTP_CODE,
+            expiresAt: new Date(Date.now() + DEMO_OTP_EXPIRY_MS),
+            consumed: false,
+          },
+        },
+        { upsert: true, setDefaultsOnInsert: true },
+      );
+
+      return new NextResponse(null, { status: 204 });
     }
 
     await createOtpCode(email);
