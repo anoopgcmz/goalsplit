@@ -92,6 +92,7 @@ function GoalCard(props: GoalCardProps): JSX.Element {
     onEdit,
     onDelete,
     isDeleting = false,
+    canManage = true,
   } = props;
   const relativeDue = getRelativeDueLabel(targetDate);
   const formattedTargetDate = dateFormatter.format(new Date(targetDate));
@@ -283,55 +284,57 @@ function GoalCard(props: GoalCardProps): JSX.Element {
             Due {relativeDue} <span className="text-slate-400">•</span> {formattedTargetDate}
           </p>
         </div>
-        <div className="relative">
-          <Button
-            type="button"
-            variant="ghost"
-            aria-haspopup="menu"
-            aria-label="Goal actions"
-            className="h-8 w-8 rounded-full p-0 text-lg text-slate-500 hover:text-slate-700"
-            onClick={handleMenuToggle}
-            onKeyDown={handleTriggerKeyDown}
-            aria-expanded={isMenuOpen}
-            aria-controls={menuId}
-            id={triggerId}
-            ref={triggerRef}
-            disabled={isDeleting}
-          >
-            ⋯
-          </Button>
-          {isMenuOpen ? (
-            <div
-              id={menuId}
-              role="menu"
-              aria-labelledby={triggerId}
-              ref={menuRef}
-              className="absolute right-0 top-full z-10 mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm font-medium text-slate-600 shadow-lg focus:outline-none"
-              onKeyDown={handleMenuKeyDown}
+        {canManage ? (
+          <div className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              aria-haspopup="menu"
+              aria-label="Goal actions"
+              className="h-8 w-8 rounded-full p-0 text-lg text-slate-500 hover:text-slate-700"
+              onClick={handleMenuToggle}
+              onKeyDown={handleTriggerKeyDown}
+              aria-expanded={isMenuOpen}
+              aria-controls={menuId}
+              id={triggerId}
+              ref={triggerRef}
+              disabled={isDeleting}
             >
-              <button
-                type="button"
-                role="menuitem"
-                ref={setMenuItemRef(0)}
-                className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                onClick={handleEditClick}
-                disabled={isDeleting}
+              ⋯
+            </Button>
+            {isMenuOpen ? (
+              <div
+                id={menuId}
+                role="menu"
+                aria-labelledby={triggerId}
+                ref={menuRef}
+                className="absolute right-0 top-full z-10 mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm font-medium text-slate-600 shadow-lg focus:outline-none"
+                onKeyDown={handleMenuKeyDown}
               >
-                Edit
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                ref={setMenuItemRef(1)}
-                className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:text-red-300"
-                onClick={handleDeleteClick}
-                disabled={isDeleting}
-              >
-                Delete
-              </button>
-            </div>
-          ) : null}
-        </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  ref={setMenuItemRef(0)}
+                  className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                  onClick={handleEditClick}
+                  disabled={isDeleting}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  ref={setMenuItemRef(1)}
+                  className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:text-red-300"
+                  onClick={handleDeleteClick}
+                  disabled={isDeleting}
+                >
+                  Delete
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <dl className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">

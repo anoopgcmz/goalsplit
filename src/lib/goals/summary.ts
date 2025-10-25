@@ -14,6 +14,7 @@ export interface GoalSummary {
   contributionLabel: string;
   collaborative: boolean;
   progress: number;
+  canManage?: boolean;
 }
 
 const contributionFrequencyToNPerYear = (
@@ -40,7 +41,14 @@ const clampPercent = (value: number) => {
   return value;
 };
 
-export const buildGoalSummary = (goal: GoalResponse): GoalSummary => {
+interface BuildGoalSummaryOptions {
+  viewerId?: string;
+}
+
+export const buildGoalSummary = (
+  goal: GoalResponse,
+  options: BuildGoalSummaryOptions = {},
+): GoalSummary => {
   const now = new Date();
   const targetDate = new Date(goal.targetDate);
   const years = Math.max(yearFractionFromDates(now, targetDate), 0);
@@ -73,6 +81,9 @@ export const buildGoalSummary = (goal: GoalResponse): GoalSummary => {
 
   const progress = target > 0 ? clampPercent(((existing ?? 0) / target) * 100) : 0;
 
+  const canManage =
+    typeof options.viewerId === "string" && goal.ownerId === options.viewerId;
+
   return {
     id: goal.id,
     title: goal.title,
@@ -82,5 +93,6 @@ export const buildGoalSummary = (goal: GoalResponse): GoalSummary => {
     contributionLabel,
     collaborative: goal.isShared,
     progress: Math.round(progress),
+    canManage: options.viewerId ? canManage : undefined,
   } satisfies GoalSummary;
 };

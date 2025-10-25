@@ -174,6 +174,7 @@ export interface GoalSummary {
   collaborative: boolean;
   progress: number;
   contributionLabel: string;
+  canManage?: boolean;
 }
 
 const GOAL_NOT_FOUND_ERROR = "We couldn't find that goal.";
@@ -208,6 +209,7 @@ export const mockGoalsAdapter = {
         progress: Math.round(progress),
         contributionLabel:
           goal.contributionFrequency === "monthly" ? "per month" : "per year",
+        canManage: goal.ownerId === mockUsers[0]?.id,
       } satisfies GoalSummary;
     });
   },

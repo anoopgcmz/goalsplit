@@ -31,7 +31,7 @@ export default async function DashboardRoute(): Promise<JSX.Element> {
   const summaries: GoalSummary[] = goalDocs.map((goalDoc) => {
     const goal = serializeGoal(goalDoc);
     const plan = buildGoalPlan(goal);
-    const summary = buildGoalSummary(goal);
+    const summary = buildGoalSummary(goal, { viewerId: user.id });
     const perPeriod = Number.isFinite(plan.totals.perPeriod)
       ? Math.max(plan.totals.perPeriod, 0)
       : 0;
