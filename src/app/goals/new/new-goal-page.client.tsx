@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+import type { CreateGoalInput } from "@/app/api/goals/schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
@@ -11,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { createGoal } from "@/lib/api/goals";
+import { isApiError } from "@/lib/api/request";
 
 const currencies = [
   { label: "Indian Rupee (INR)", value: "INR" },
@@ -89,6 +92,7 @@ export default function NewGoalPage(): JSX.Element {
   const router = useRouter();
   const [state, setState] = useState<FormState>(defaultState);
   const [touched, setTouched] = useState<TouchedState>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { publish } = useToast();
 
   const errors = useMemo(() => validateForm(state), [state]);
@@ -120,6 +124,10 @@ export default function NewGoalPage(): JSX.Element {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) {
+      return;
+    }
+
     if (!canSubmit) {
       setTouched(
         Object.keys(defaultState).reduce<TouchedState>((acc, key) => {
@@ -130,12 +138,44 @@ export default function NewGoalPage(): JSX.Element {
       return;
     }
 
-    publish({
-      title: "Goal created",
-      description: "We saved your goal setup. You can refine the plan anytime.",
-      variant: "success",
-    });
-    router.push("/goals");
+    setIsSubmitting(true);
+
+    const payload: CreateGoalInput = {
+      title: state.title.trim(),
+      targetAmount: Number(state.targetAmount),
+      currency: state.currency,
+      targetDate: new Date(state.targetDate).toISOString(),
+      expectedRate: Number(state.expectedReturn),
+      compounding: state.compounding,
+      contributionFrequency: state.contributionFrequency,
+      existingSavings:
+        state.existingSavings.trim().length > 0 ? Number(state.existingSavings) : undefined,
+    };
+
+    const submit = async () => {
+      try {
+        await createGoal(payload);
+
+        publish({
+          title: "Goal created",
+          description: "We saved your goal setup. You can refine the plan anytime.",
+          variant: "success",
+        });
+        router.push("/goals");
+      } catch (error) {
+        publish({
+          title: "We couldn't save that goal",
+          description: isApiError(error)
+            ? error.hint ?? error.message
+            : "Something unexpected happened. Please try again.",
+          variant: "error",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+    void submit();
   };
 
   return (
@@ -437,8 +477,8 @@ export default function NewGoalPage(): JSX.Element {
               </CardContent>
               <CardFooter className="flex flex-wrap items-center justify-end gap-3">
                 <Button type="button" variant="ghost" onClick={() => router.push("/goals")}>Cancel</Button>
-                <Button type="submit" disabled={!canSubmit}>
-                  Create goal
+                <Button type="submit" disabled={!canSubmit || isSubmitting} aria-busy={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Create goal"}
                 </Button>
               </CardFooter>
             </Card>

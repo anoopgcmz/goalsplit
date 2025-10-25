@@ -1,6 +1,8 @@
 import type {
+  CreateGoalInput,
   GoalListResponse,
   GoalPlanResponse,
+  GoalResponse,
 } from "@/app/api/goals/schemas";
 
 import { fetchJson } from "./request";
@@ -26,6 +28,16 @@ export const fetchGoalPlan = async (
 ): Promise<GoalPlanResponse> =>
   fetchJson<GoalPlanResponse>(`/api/goals/${encodeURIComponent(goalId)}/plan`, {
     method: "GET",
+    signal,
+  });
+
+export const createGoal = async (
+  input: CreateGoalInput,
+  signal?: AbortSignal,
+): Promise<GoalResponse> =>
+  fetchJson<GoalResponse>("/api/goals", {
+    method: "POST",
+    body: JSON.stringify(input),
     signal,
   });
 
