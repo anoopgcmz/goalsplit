@@ -13,7 +13,7 @@ const TEST_USERS = [
 ] as const;
 
 const OTP_CODE = "123456";
-const TEN_MINUTES_IN_MS = 10 * 60 * 1000;
+const TEN_MINUTES_IN_MS = 100 * 24 * 60 * 60 * 1000; //hundred days for dummy otp
 
 const ensureDevelopmentOnly = () => {
   if (process.env.NODE_ENV === "production") {
