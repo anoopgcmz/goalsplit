@@ -1,16 +1,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { getJwtSecret } from "@/lib/auth/jwt-secret";
+
 const SESSION_COOKIE_NAME = "session";
 const PUBLIC_PATHS = new Set(["/login", "/robots.txt"]);
 const PUBLIC_PREFIXES = ["/api/auth", "/shared/accept", "/_next"];
 const FAVICON_PREFIX = "/favicon";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-if (typeof JWT_SECRET !== "string" || JWT_SECRET.length === 0) {
-  throw new Error("JWT_SECRET environment variable must be set");
-}
+const JWT_SECRET = getJwtSecret();
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
