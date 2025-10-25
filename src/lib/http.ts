@@ -205,11 +205,65 @@ function extractDetails(data: unknown): unknown {
   return data;
 }
 
+interface SerializableCookie {
+  name: string;
+  value: string;
+}
+
+function isCookieStore(value: unknown): value is { getAll(): unknown } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "getAll" in value &&
+    typeof (value as { getAll?: unknown }).getAll === "function"
+  );
+}
+
+function isSerializableCookieArray(value: unknown): value is SerializableCookie[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => {
+      if (typeof item !== "object" || item === null) {
+        return false;
+      }
+
+      const candidate = item as { name?: unknown; value?: unknown };
+      return typeof candidate.name === "string" && typeof candidate.value === "string";
+    })
+  );
+}
+
 export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Promise<T> {
   const { schema, headers, body, cache: cacheMode, ...rest } = init;
 
   const finalHeaders = new Headers(headers ?? {});
   let finalBody: BodyInit | null | undefined;
+
+  if (typeof window === "undefined" && !finalHeaders.has("cookie")) {
+    try {
+      const { cookies: getCookies } = await import("next/headers");
+      const cookieStore: unknown = getCookies();
+
+      if (isCookieStore(cookieStore)) {
+        const cookies = cookieStore.getAll();
+
+        if (isSerializableCookieArray(cookies)) {
+          const serializedCookies = cookies
+            .map((cookie) => `${cookie.name}=${cookie.value}`)
+            .join("; ");
+
+          if (serializedCookies) {
+            finalHeaders.set("cookie", serializedCookies);
+          }
+        }
+      }
+    } catch (error: unknown) {
+      // In environments where next/headers is unavailable (e.g. tests or the edge runtime),
+      // we simply fall back to whatever headers were explicitly provided by the caller.
+      // eslint-disable-next-line no-console
+      console.warn("Unable to read request cookies for apiFetch:", error);
+    }
+  }
 
   if (shouldSerializeBody(body)) {
     finalBody = JSON.stringify(body);
