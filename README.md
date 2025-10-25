@@ -31,10 +31,17 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to view th
 Run the seed script and copy the credentials printed to your terminal:
 
 ```bash
-npm run seed:dummy
+npm run seed:test-users
 ```
 
 Then visit `/login` and enter any of the listed email + OTP combinations.
+
+### Testing Login
+Run: npm run seed:test-users
+Go to /login and use any of these:
+Email: demo1@example.com
+OTP: 123456
+(OTP has no expiry for testing)
 
 ## Environment Setup
 
