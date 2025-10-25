@@ -1,19 +1,9 @@
 import mongoose from "mongoose";
 
+import { DEMO_OTP_CODE, DEMO_OTP_EXPIRY_MS, DEMO_USERS } from "@/lib/auth/demo";
 import { dbConnect } from "@/lib/mongo";
 import OtpCodeModel from "@/models/otp-code";
 import UserModel from "@/models/user";
-
-const TEST_USERS = [
-  { email: "demo1@example.com", name: "Demo One" },
-  { email: "demo2@example.com", name: "Demo Two" },
-  { email: "demo3@example.com", name: "Demo Three" },
-  { email: "demo4@example.com", name: "Demo Four" },
-  { email: "demo5@example.com", name: "Demo Five" },
-] as const;
-
-const OTP_CODE = "123456";
-const TEN_MINUTES_IN_MS = 100 * 24 * 60 * 60 * 1000; //hundred days for dummy otp
 
 const ensureDevelopmentOnly = () => {
   if (process.env.NODE_ENV === "production") {
@@ -28,15 +18,15 @@ const seedTestUsers = async () => {
   console.log("Clearing existing users and OTP codes...");
   await Promise.all([UserModel.deleteMany({}), OtpCodeModel.deleteMany({})]);
 
-  const expiry = new Date(Date.now() + TEN_MINUTES_IN_MS);
+  const expiry = new Date(Date.now() + DEMO_OTP_EXPIRY_MS);
 
-  for (const { email, name } of TEST_USERS) {
+  for (const { email, name } of DEMO_USERS) {
     console.log(`Creating user ${email}...`);
     await UserModel.create({ email, name });
 
     await OtpCodeModel.create({
       email,
-      code: OTP_CODE,
+      code: DEMO_OTP_CODE,
       expiresAt: expiry,
       consumed: false,
     });
@@ -49,10 +39,10 @@ const main = async () => {
 
     console.log("✅ Dummy users created successfully.");
     console.log("Login with these test credentials:");
-    for (const { email } of TEST_USERS) {
-      console.log(`${email} → OTP ${OTP_CODE}`);
+    for (const { email } of DEMO_USERS) {
+      console.log(`${email} → OTP ${DEMO_OTP_CODE}`);
     }
-    console.log("OTP codes expire in 10 minutes.");
+    console.log("OTP codes expire in about 100 days for local testing.");
   } catch (error) {
     console.error("Failed to seed test users:", error);
     process.exitCode = 1;
