@@ -2,11 +2,13 @@ import {
   GoalListResponseSchema,
   GoalPlanResponseSchema,
   GoalResponseSchema,
+  type CreateGoalInviteInput,
   type CreateGoalInput,
   type GoalListQuery,
   type GoalListResponse,
   type GoalPlanResponse,
   type GoalResponse,
+  type UpdateGoalMembersInput,
   type UpdateGoalInput,
 } from "@/app/api/goals/schemas";
 import { apiFetch } from "@/lib/http";
@@ -22,25 +24,6 @@ const DEFAULT_SUMMARY_QUERY: GoalListQuery = {
   sortBy: "targetDate",
   sortOrder: "asc",
 };
-
-type GoalMemberRole = GoalResponse["members"][number]["role"];
-
-interface MemberContribution {
-  userId: string;
-  role: GoalMemberRole;
-  splitPercent?: number | null;
-  fixedAmount?: number | null;
-}
-
-export interface UpdateGoalMembersInput {
-  members: MemberContribution[];
-}
-
-export interface InviteCollaboratorInput {
-  email: string;
-  defaultSplitPercent?: number;
-  fixedAmount?: number | null;
-}
 
 function buildQueryString(query?: Partial<GoalListQuery>): string {
   if (!query) {
@@ -138,18 +121,14 @@ export const getPlan = async (
 
 export const inviteCollaborator = async (
   goalId: string,
-  input: InviteCollaboratorInput,
+  input: CreateGoalInviteInput,
   signal?: AbortSignal,
 ): Promise<{ inviteUrl?: string }> =>
   apiFetch<{ inviteUrl?: string }>(
     `${GOALS_BASE_PATH}/${encodeURIComponent(goalId)}/invite`,
     {
       method: "POST",
-      body: {
-        email: input.email,
-        defaultSplitPercent: input.defaultSplitPercent,
-        fixedAmount: input.fixedAmount ?? null,
-      },
+      body: input,
       signal,
     },
   );
@@ -163,19 +142,7 @@ export const updateMembers = async (
     `${GOALS_BASE_PATH}/${encodeURIComponent(goalId)}/members`,
     {
       method: "PATCH",
-      body: {
-        members: input.members.map((member) => ({
-          ...member,
-          splitPercent:
-            member.splitPercent === undefined
-              ? undefined
-              : member.splitPercent ?? null,
-          fixedAmount:
-            member.fixedAmount === undefined
-              ? undefined
-              : member.fixedAmount ?? null,
-        })),
-      },
+      body: input,
       schema: GoalResponseSchema,
       signal,
     },

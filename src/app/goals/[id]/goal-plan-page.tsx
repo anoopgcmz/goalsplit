@@ -18,7 +18,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } fro
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useToast } from "@/components/ui/toast";
 import type { AuthUser } from "@/app/api/auth/schemas";
-import type { GoalPlanResponse } from "@/app/api/goals/schemas";
+import {
+  CreateGoalInviteInputSchema,
+  UpdateGoalMembersInputSchema,
+  type GoalPlanResponse,
+} from "@/app/api/goals/schemas";
 import {
   netTargetAfterExisting,
   requiredLumpSumForFutureValue,
@@ -34,6 +38,8 @@ import {
 } from "@/lib/api/goals";
 import { getCurrentUser } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/request";
+import { ApiError as HttpApiError } from "@/lib/http";
+import { normalizeZodIssues } from "@/lib/validation/zod";
 
 type ContributionFrequency = GoalPlanResponse["assumptions"]["contributionFrequency"];
 type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
@@ -884,6 +890,19 @@ interface MemberRowState {
   fixedAmount: string;
 }
 
+interface MemberFieldErrorState {
+  splitPercent?: string;
+  fixedAmount?: string;
+}
+
+type MemberFieldErrors = Record<string, MemberFieldErrorState>;
+
+interface InviteFieldErrors {
+  email?: string;
+  defaultSplitPercent?: string;
+  fixedAmount?: string;
+}
+
 interface ComputedMemberRow extends MemberRowState {
   splitValue: number | null;
   fixedValue: number | null;
@@ -940,6 +959,90 @@ const serializeRows = (rows: MemberRowState[]): string =>
       fixedAmount: row.fixedAmount.trim(),
     })),
   );
+
+const mapMemberIssues = (
+  issues: ReturnType<typeof normalizeZodIssues>,
+  rows: MemberRowState[],
+): {
+  errors: MemberFieldErrors;
+  generalMessages: string[];
+  firstError: { rowIndex: number; field: EditableColumnKey } | null;
+} => {
+  const errors: MemberFieldErrors = {};
+  const generalMessages: string[] = [];
+  let firstError: { rowIndex: number; field: EditableColumnKey } | null = null;
+
+  issues.forEach((issue) => {
+    if (issue.path[0] !== "members") {
+      if (issue.path.length === 0) {
+        generalMessages.push(issue.message);
+      }
+      return;
+    }
+
+    const indexCandidate = issue.path[1];
+    const rowIndex =
+      typeof indexCandidate === "number"
+        ? indexCandidate
+        : typeof indexCandidate === "string"
+        ? Number.parseInt(indexCandidate, 10)
+        : Number.NaN;
+
+    if (!Number.isInteger(rowIndex) || rowIndex < 0 || rowIndex >= rows.length) {
+      generalMessages.push(issue.message);
+      return;
+    }
+
+    const fieldSegment = issue.path[2];
+    const fieldKey =
+      fieldSegment === "splitPercent"
+        ? "splitPercent"
+        : fieldSegment === "fixedAmount"
+        ? "fixedAmount"
+        : null;
+
+    if (!fieldKey) {
+      generalMessages.push(issue.message);
+      return;
+    }
+
+    const member = rows[rowIndex];
+    if (!member) {
+      generalMessages.push(issue.message);
+      return;
+    }
+
+    errors[member.userId] = {
+      ...errors[member.userId],
+      [fieldKey]: issue.message,
+    };
+
+    if (!firstError) {
+      firstError = { rowIndex, field: fieldKey === "splitPercent" ? "split" : "fixed" };
+    }
+  });
+
+  return { errors, generalMessages, firstError };
+};
+
+const mapInviteIssues = (issues: ReturnType<typeof normalizeZodIssues>) => {
+  const errors: InviteFieldErrors = {};
+  const generalMessages: string[] = [];
+
+  issues.forEach((issue) => {
+    const field = issue.path[0];
+    if (field === "email" || field === "defaultSplitPercent" || field === "fixedAmount") {
+      errors[field] = errors[field] ?? issue.message;
+      return;
+    }
+
+    if (issue.path.length === 0) {
+      generalMessages.push(issue.message);
+    }
+  });
+
+  return { errors, generalMessages };
+};
 
 const computeMemberAllocations = (
   rows: MemberRowState[],
@@ -1023,6 +1126,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const isSavingRef = useRef(false);
   const hasPendingSaveRef = useRef(false);
   const [isSavingMembers, setIsSavingMembers] = useState(false);
+  const [memberErrors, setMemberErrors] = useState<MemberFieldErrors>({});
   const [pendingRemovalUserId, setPendingRemovalUserId] = useState<string | null>(null);
   const [isRemovingMember, setIsRemovingMember] = useState(false);
   const baseId = useId();
@@ -1046,6 +1150,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     hasPendingSaveRef.current = false;
     isSavingRef.current = false;
     setIsSavingMembers(false);
+    setMemberErrors({});
   }, [members]);
 
   useEffect(() => {
@@ -1059,6 +1164,29 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
   const columnOrder: readonly EditableColumnKey[] = ["split", "fixed"];
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const registerInputRef = useCallback(
+    (rowIndex: number, column: EditableColumnKey) => {
+      return (element: HTMLInputElement | null) => {
+        const key = `${rowIndex}-${column}`;
+        if (element) {
+          inputRefs.current[key] = element;
+        } else {
+          delete inputRefs.current[key];
+        }
+      };
+    },
+    [],
+  );
+
+  const focusCell = useCallback((rowIndex: number, column: EditableColumnKey) => {
+    const key = `${rowIndex}-${column}`;
+    const element = inputRefs.current[key];
+    if (element) {
+      element.focus();
+      element.select?.();
+    }
+  }, []);
 
   const commitChanges = useCallback(async () => {
     if (!canManageMembers) {
@@ -1093,8 +1221,48 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       };
     });
 
+    const applyIssues = (
+      issues: ReturnType<typeof normalizeZodIssues>,
+      notify = true,
+    ) => {
+      const { errors, generalMessages, firstError } = mapMemberIssues(issues, snapshot);
+
+      if (Object.keys(errors).length > 0) {
+        setMemberErrors(errors);
+      }
+
+      if (firstError) {
+        focusCell(firstError.rowIndex, firstError.field);
+      }
+
+      if (notify) {
+        const message =
+          generalMessages[0] ??
+          (Object.keys(errors).length > 0 ? "Check the highlighted fields." : null);
+
+        if (message) {
+          publish({
+            title: "Update failed",
+            description: message,
+            variant: "error",
+          });
+        }
+      }
+
+      return Object.keys(errors).length > 0 || generalMessages.length > 0;
+    };
+
+    const validation = UpdateGoalMembersInputSchema.safeParse({ members: payload });
+
+    if (!validation.success) {
+      applyIssues(normalizeZodIssues(validation.error.issues));
+      isSavingRef.current = false;
+      setIsSavingMembers(false);
+      return;
+    }
+
     try {
-      const response = await updateGoalMembers(goalId, { members: payload });
+      const response = await updateGoalMembers(goalId, validation.data);
       const serverMembers = new Map(
         response.members.map((member) => [member.userId, member]),
       );
@@ -1134,11 +1302,28 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       rowsRef.current = nextRows;
       lastSavedRef.current = serializeRows(nextRows);
       setRows(nextRows);
+      setMemberErrors({});
 
       if (onMembersUpdated) {
         await onMembersUpdated();
       }
     } catch (error) {
+      if (error instanceof HttpApiError) {
+        if (error.status === 422) {
+          const handled = applyIssues(normalizeZodIssues(error.details));
+          if (handled) {
+            return;
+          }
+        }
+
+        publish({
+          title: "Update failed",
+          description: error.message,
+          variant: "error",
+        });
+        return;
+      }
+
       const message = isApiError(error)
         ? error.message
         : "We couldn't update these contributions. Check your connection and try again.";
@@ -1156,7 +1341,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         void commitChanges();
       }
     }
-  }, [canManageMembers, goalId, onMembersUpdated, publish]);
+  }, [canManageMembers, focusCell, goalId, onMembersUpdated, publish]);
 
   const percentWarningActive =
     computation.percentEligibleCount > 0 &&
@@ -1167,26 +1352,6 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     .concat(percentWarningActive ? [percentWarningId] : [])
     .concat(overflowWarningActive ? [overflowWarningId] : [])
     .join(" ") || undefined;
-
-  const registerInputRef = (rowIndex: number, column: EditableColumnKey) => {
-    return (element: HTMLInputElement | null) => {
-      const key = `${rowIndex}-${column}`;
-      if (element) {
-        inputRefs.current[key] = element;
-      } else {
-        delete inputRefs.current[key];
-      }
-    };
-  };
-
-  const focusCell = (rowIndex: number, column: EditableColumnKey) => {
-    const key = `${rowIndex}-${column}`;
-    const element = inputRefs.current[key];
-    if (element) {
-      element.focus();
-      element.select?.();
-    }
-  };
 
   const handleCellKeyDown = (
     event: KeyboardEvent<HTMLInputElement>,
@@ -1234,6 +1399,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   };
 
   const handleSplitChange = (rowIndex: number, value: string) => {
+    const userId = rowsRef.current[rowIndex]?.userId;
     setRows((prev) => {
       const next = prev.map((row, index) =>
         index === rowIndex ? { ...row, splitPercent: value } : row,
@@ -1241,9 +1407,31 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       rowsRef.current = next;
       return next;
     });
+
+    if (userId) {
+      setMemberErrors((prev) => {
+        const existing = prev[userId];
+        if (!existing?.splitPercent) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        const nextEntry: MemberFieldErrorState = { ...existing };
+        delete nextEntry.splitPercent;
+
+        if (Object.keys(nextEntry).length === 0) {
+          delete next[userId];
+        } else {
+          next[userId] = nextEntry;
+        }
+
+        return next;
+      });
+    }
   };
 
   const handleFixedChange = (rowIndex: number, value: string) => {
+    const userId = rowsRef.current[rowIndex]?.userId;
     setRows((prev) => {
       const next = prev.map((row, index) =>
         index === rowIndex ? { ...row, fixedAmount: value } : row,
@@ -1251,6 +1439,27 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       rowsRef.current = next;
       return next;
     });
+
+    if (userId) {
+      setMemberErrors((prev) => {
+        const existing = prev[userId];
+        if (!existing?.fixedAmount) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        const nextEntry: MemberFieldErrorState = { ...existing };
+        delete nextEntry.fixedAmount;
+
+        if (Object.keys(nextEntry).length === 0) {
+          delete next[userId];
+        } else {
+          next[userId] = nextEntry;
+        }
+
+        return next;
+      });
+    }
   };
 
   const requestRemoveMember = (userId: string) => {
@@ -1386,12 +1595,16 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     "idle",
   );
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [inviteErrors, setInviteErrors] = useState<InviteFieldErrors>({});
 
   const openInvite = () => {
     const remainingPercent = Math.max(0, 100 - computation.percentSum);
     const defaultSplit =
       computation.percentEligibleCount > 0 && remainingPercent > 0 ? remainingPercent : 50;
     setInviteSplit(clamp(defaultSplit, 0, 100).toFixed(1));
+    setInviteErrors({});
+    setInviteStatus("idle");
+    setInviteMessage(null);
     setIsInviteOpen(true);
   };
 
@@ -1401,6 +1614,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     setInviteFixed("");
     setInviteStatus("idle");
     setInviteMessage(null);
+    setInviteErrors({});
   };
 
   const handleInviteSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1411,22 +1625,40 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
     setInviteStatus("submitting");
     setInviteMessage(null);
+    setInviteErrors({});
 
     try {
-      const parsedSplit = Number.parseFloat(inviteSplit);
-      const parsedFixed = Number.parseFloat(inviteFixed);
+      const candidate = {
+        email: inviteEmail,
+        defaultSplitPercent: inviteSplit.trim().length > 0 ? inviteSplit : undefined,
+        fixedAmount: inviteFixed.trim().length > 0 ? inviteFixed : null,
+      };
 
-      const payload = await sendGoalInvite(
-        goalId,
-        {
-          email: inviteEmail,
-          defaultSplitPercent: Number.isFinite(parsedSplit) ? parsedSplit : undefined,
-          fixedAmount:
-            inviteFixed.trim().length > 0 && Number.isFinite(parsedFixed)
-              ? parsedFixed
-              : null,
-        },
-      );
+      const validation = CreateGoalInviteInputSchema.safeParse(candidate);
+
+      if (!validation.success) {
+        const normalized = normalizeZodIssues(validation.error.issues);
+        const { errors, generalMessages } = mapInviteIssues(normalized);
+
+        if (Object.keys(errors).length > 0) {
+          setInviteErrors(errors);
+        }
+
+        const message =
+          generalMessages[0] ??
+          (Object.keys(errors).length > 0
+            ? "Please fix the highlighted fields before sending."
+            : "We couldn't send that invite. Check the details and try again.");
+
+        setInviteStatus("error");
+        setInviteMessage(message);
+        return;
+      }
+
+      const parsedInput = validation.data;
+      setInviteEmail(parsedInput.email);
+
+      const payload = await sendGoalInvite(goalId, parsedInput);
 
       const successMessage =
         payload?.inviteUrl != null
@@ -1435,6 +1667,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
       setInviteStatus("success");
       setInviteMessage(successMessage);
+      setInviteErrors({});
       publish({
         title: "Invitation ready",
         description:
@@ -1444,6 +1677,42 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         variant: "success",
       });
     } catch (error) {
+      if (error instanceof HttpApiError) {
+        if (error.status === 422) {
+          const normalized = normalizeZodIssues(error.details);
+          const { errors, generalMessages } = mapInviteIssues(normalized);
+
+          if (Object.keys(errors).length > 0) {
+            setInviteErrors(errors);
+            setInviteStatus("error");
+            setInviteMessage(
+              generalMessages[0] ?? "Please fix the highlighted fields before sending.",
+            );
+            return;
+          }
+
+          if (generalMessages.length > 0) {
+            setInviteStatus("error");
+            setInviteMessage(generalMessages[0]);
+            publish({
+              title: "Invite failed",
+              description: generalMessages[0],
+              variant: "error",
+            });
+            return;
+          }
+        }
+
+        setInviteStatus("error");
+        setInviteMessage(error.message);
+        publish({
+          title: "Invite failed",
+          description: error.message,
+          variant: "error",
+        });
+        return;
+      }
+
       setInviteStatus("error");
       const message = isApiError(error)
         ? error.message
@@ -1465,6 +1734,12 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const removalDisplayName = pendingRemovalRow?.name?.trim().length
     ? pendingRemovalRow.name
     : pendingRemovalRow?.email ?? "this collaborator";
+  const inviteEmailError = inviteErrors.email;
+  const inviteSplitError = inviteErrors.defaultSplitPercent;
+  const inviteFixedError = inviteErrors.fixedAmount;
+  const inviteEmailErrorId = inviteEmailError ? `${baseId}-invite-email-error` : undefined;
+  const inviteSplitErrorId = inviteSplitError ? `${baseId}-invite-split-error` : undefined;
+  const inviteFixedErrorId = inviteFixedError ? `${baseId}-invite-fixed-error` : undefined;
 
   return (
     <section className="space-y-4" aria-labelledby={titleId}>
@@ -1548,12 +1823,19 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                 : !row.name && !row.email
                 ? `ID: ${row.userId}`
                 : null;
+            const rowError = memberErrors[row.userId] ?? {};
+            const splitError = rowError.splitPercent;
+            const fixedError = rowError.fixedAmount;
+            const splitErrorId = splitError ? `${baseId}-split-error-${rowIndex}` : undefined;
+            const fixedErrorId = fixedError ? `${baseId}-fixed-error-${rowIndex}` : undefined;
             const splitDescribedBy = [splitHintId]
               .concat(percentWarningActive ? [percentWarningId] : [])
+              .concat(splitErrorId ? [splitErrorId] : [])
               .join(" ")
               .trim();
             const fixedDescribedBy = [fixedHintId]
               .concat(overflowWarningActive ? [overflowWarningId] : [])
+              .concat(fixedErrorId ? [fixedErrorId] : [])
               .join(" ")
               .trim();
             const formattedPerPeriod = Number.isFinite(row.perPeriod)
@@ -1589,8 +1871,15 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     }}
                     aria-labelledby={`${rowLabelId} ${splitHeaderId}`.trim()}
                     aria-describedby={splitDescribedBy.length > 0 ? splitDescribedBy : undefined}
+                    aria-invalid={splitError ? "true" : undefined}
+                    className={splitError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
                     placeholder="0"
                   />
+                  {splitError ? (
+                    <p id={splitErrorId} className="mt-1 text-xs text-rose-600">
+                      {splitError}
+                    </p>
+                  ) : null}
                 </TableCell>
                 <TableCell>
                   <Input
@@ -1604,8 +1893,15 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     }}
                     aria-labelledby={`${rowLabelId} ${fixedHeaderId}`.trim()}
                     aria-describedby={fixedDescribedBy.length > 0 ? fixedDescribedBy : undefined}
+                    aria-invalid={fixedError ? "true" : undefined}
+                    className={fixedError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
                     placeholder="0"
                   />
+                  {fixedError ? (
+                    <p id={fixedErrorId} className="mt-1 text-xs text-rose-600">
+                      {fixedError}
+                    </p>
+                  ) : null}
                 </TableCell>
                 <TableCell className="font-medium text-slate-900">
                   {formattedPerPeriod}
@@ -1673,10 +1969,32 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                 id={`${baseId}-invite-email`}
                 type="email"
                 value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setInviteEmail(nextValue);
+                  if (inviteErrors.email) {
+                    setInviteErrors((prev) => {
+                      if (!prev.email) {
+                        return prev;
+                      }
+                      const next = { ...prev };
+                      delete next.email;
+                      return next;
+                    });
+                  }
+                }}
                 required
-                aria-describedby={`${inviteHelperId} ${inviteStatusId}`.trim()}
+                aria-describedby={[inviteHelperId, inviteStatusId, inviteEmailErrorId]
+                  .filter(Boolean)
+                  .join(" ") || undefined}
+                aria-invalid={inviteEmailError ? "true" : undefined}
+                className={inviteEmailError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
               />
+              {inviteEmailError ? (
+                <p id={inviteEmailErrorId} className="text-xs text-rose-600">
+                  {inviteEmailError}
+                </p>
+              ) : null}
               <p id={inviteHelperId} className="text-xs text-slate-500">
                 We’ll email an invite link.
               </p>
@@ -1688,8 +2006,29 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   id={`${baseId}-invite-split`}
                   inputMode="decimal"
                   value={inviteSplit}
-                  onChange={(event) => setInviteSplit(event.target.value)}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setInviteSplit(nextValue);
+                    if (inviteErrors.defaultSplitPercent) {
+                      setInviteErrors((prev) => {
+                        if (!prev.defaultSplitPercent) {
+                          return prev;
+                        }
+                        const next = { ...prev };
+                        delete next.defaultSplitPercent;
+                        return next;
+                      });
+                    }
+                  }}
+                  aria-describedby={inviteSplitErrorId ?? undefined}
+                  aria-invalid={inviteSplitError ? "true" : undefined}
+                  className={inviteSplitError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
                 />
+                {inviteSplitError ? (
+                  <p id={inviteSplitErrorId} className="text-xs text-rose-600">
+                    {inviteSplitError}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor={`${baseId}-invite-fixed`}>Fixed amount (optional)</Label>
@@ -1697,9 +2036,30 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   id={`${baseId}-invite-fixed`}
                   inputMode="decimal"
                   value={inviteFixed}
-                  onChange={(event) => setInviteFixed(event.target.value)}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setInviteFixed(nextValue);
+                    if (inviteErrors.fixedAmount) {
+                      setInviteErrors((prev) => {
+                        if (!prev.fixedAmount) {
+                          return prev;
+                        }
+                        const next = { ...prev };
+                        delete next.fixedAmount;
+                        return next;
+                      });
+                    }
+                  }}
                   placeholder="0"
+                  aria-describedby={inviteFixedErrorId ?? undefined}
+                  aria-invalid={inviteFixedError ? "true" : undefined}
+                  className={inviteFixedError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
                 />
+                {inviteFixedError ? (
+                  <p id={inviteFixedErrorId} className="text-xs text-rose-600">
+                    {inviteFixedError}
+                  </p>
+                ) : null}
               </div>
             </div>
             <p

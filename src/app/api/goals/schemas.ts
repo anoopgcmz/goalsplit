@@ -98,19 +98,53 @@ export const GoalListQuerySchema = z.object({
 });
 
 const GoalDetailsSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  targetAmount: z.coerce.number().finite(),
-  currency: z
-    .string()
+  title: z
+    .string({
+      required_error: "Add a descriptive title.",
+      invalid_type_error: "Add a descriptive title.",
+    })
     .trim()
-    .min(1)
-    .max(10)
+    .min(1, "Add a descriptive title.")
+    .max(200, "Keep the title under 200 characters."),
+  targetAmount: z
+    .coerce
+    .number({ invalid_type_error: "Enter how much the goal costs." })
+    .finite({ message: "Enter how much the goal costs." }),
+  currency: z
+    .string({
+      required_error: "Pick a currency.",
+      invalid_type_error: "Pick a currency.",
+    })
+    .trim()
+    .min(1, "Pick a currency.")
+    .max(10, "Pick a valid currency code." )
     .transform((value) => value.toUpperCase()),
-  targetDate: z.coerce.date(),
-  expectedRate: z.coerce.number().finite().min(0),
-  compounding: z.enum(["monthly", "yearly"]),
-  contributionFrequency: z.enum(["monthly", "yearly"]),
-  existingSavings: z.coerce.number().finite().min(0).optional(),
+  targetDate: z
+    .coerce
+    .date({ invalid_type_error: "Choose when you'll need the money." })
+    .refine((value) => Number.isFinite(value.getTime()), {
+      message: "Choose when you'll need the money.",
+    }),
+  expectedRate: z
+    .coerce
+    .number({ invalid_type_error: "Enter an expected yearly return." })
+    .finite({ message: "Enter an expected yearly return." })
+    .gt(0, "Use a rate between 0 and 100%.")
+    .max(100, "Use a rate between 0 and 100%."),
+  compounding: z.enum(["monthly", "yearly"], {
+    required_error: "Pick how often returns are compounded.",
+    invalid_type_error: "Pick how often returns are compounded.",
+  }),
+  contributionFrequency: z.enum(["monthly", "yearly"], {
+    required_error: "Pick how often you contribute.",
+    invalid_type_error: "Pick how often you contribute.",
+  }),
+  existingSavings: z
+    .coerce
+    .number({ invalid_type_error: "Savings can't be negative." })
+    .finite({ message: "Savings can't be negative." })
+    .min(0, "Savings can't be negative.")
+    .optional(),
 });
 
 type GoalDetails = z.infer<typeof GoalDetailsSchema>;
@@ -136,6 +170,16 @@ const enforceGoalBusinessRules = (value: GoalDetailsPartial, ctx: z.RefinementCt
       });
     }
   }
+
+  if ("expectedRate" in value && typeof value.expectedRate === "number") {
+    if (value.expectedRate <= 0 || value.expectedRate > 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use a rate between 0 and 100%.",
+        path: ["expectedRate"],
+      });
+    }
+  }
 };
 
 export const CreateGoalInputSchema = GoalDetailsSchema.superRefine((value, ctx) =>
@@ -157,3 +201,127 @@ export type GoalListQuery = z.infer<typeof GoalListQuerySchema>;
 export type GoalResponse = z.infer<typeof GoalResponseSchema>;
 export type GoalListResponse = z.infer<typeof GoalListResponseSchema>;
 export type GoalPlanResponse = z.infer<typeof GoalPlanResponseSchema>;
+
+const GoalMemberContributionSchema = z
+  .object({
+    userId: z
+      .string({ required_error: "Each member needs an identifier." })
+      .trim()
+      .min(1, "Each member needs an identifier."),
+    role: GoalMemberRoleSchema,
+    splitPercent: z
+      .number({ invalid_type_error: "Enter a split percent between 0 and 100." })
+      .min(0, "Split percent must be at least 0%.")
+      .max(100, "Split percent cannot exceed 100%.")
+      .nullable()
+      .optional(),
+    fixedAmount: z
+      .number({ invalid_type_error: "Enter a fixed contribution of zero or more." })
+      .min(0, "Fixed amount cannot be negative.")
+      .nullable()
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.splitPercent == null && value.fixedAmount == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a split percent or fixed amount.",
+        path: ["splitPercent"],
+      });
+    }
+
+    if (value.splitPercent != null && value.fixedAmount != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Choose either a percent or a fixed amount for each member.",
+        path: ["fixedAmount"],
+      });
+    }
+  });
+
+export const UpdateGoalMembersInputSchema = z
+  .object({
+    members: z
+      .array(GoalMemberContributionSchema, {
+        required_error: "Include at least one member to update.",
+        invalid_type_error: "Include at least one member to update.",
+      })
+      .min(1, "Include at least one member to update."),
+  })
+  .superRefine((value, ctx) => {
+    const ownerCount = value.members.filter((member) => member.role === "owner").length;
+
+    if (ownerCount === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Keep the goal owner in the members list.",
+        path: ["members"],
+      });
+    }
+  });
+
+export const CreateGoalInviteInputSchema = z
+  .object({
+    email: z
+      .string({
+        required_error: "Enter the collaborator's email address.",
+        invalid_type_error: "Enter the collaborator's email address.",
+      })
+      .trim()
+      .min(1, "Enter the collaborator's email address.")
+      .email("Enter a valid email address.")
+      .transform((value) => value.toLowerCase()),
+    expiresInMinutes: z
+      .coerce
+      .number({ invalid_type_error: "Set how long the invite should stay active." })
+      .int({ message: "Invite expiry must be a whole number of minutes." })
+      .min(1, "Invite expiry must be at least one minute.")
+      .default(10080),
+    defaultSplitPercent: z
+      .union([
+        z
+          .coerce
+          .number({ invalid_type_error: "Enter a default split percentage." })
+          .finite({ message: "Enter a default split percentage." })
+          .min(0, "Split percent must be at least 0%.")
+          .max(100, "Split percent cannot exceed 100%.") ,
+        z.undefined(),
+        z.null(),
+      ])
+      .transform((value) => value ?? undefined),
+    fixedAmount: z
+      .union([
+        z
+          .coerce
+          .number({ invalid_type_error: "Enter a fixed amount using numbers only." })
+          .finite({ message: "Enter a fixed amount using numbers only." })
+          .min(0, "Fixed amount cannot be negative."),
+        z.undefined(),
+        z.null(),
+      ])
+      .transform((value) => value ?? null),
+  })
+  .superRefine((value, ctx) => {
+    const hasSplit = value.defaultSplitPercent != null;
+    const hasFixed = value.fixedAmount != null;
+
+    if (!hasSplit && !hasFixed) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Set a default split percent or fixed amount for the invite.",
+        path: ["defaultSplitPercent"],
+      });
+    }
+
+    if (hasSplit && hasFixed) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Choose either a percent or a fixed amount for the invite.",
+        path: ["fixedAmount"],
+      });
+    }
+  });
+
+export type GoalMemberContributionInput = z.infer<typeof GoalMemberContributionSchema>;
+export type UpdateGoalMembersInput = z.infer<typeof UpdateGoalMembersInputSchema>;
+export type CreateGoalInviteInput = z.infer<typeof CreateGoalInviteInputSchema>;

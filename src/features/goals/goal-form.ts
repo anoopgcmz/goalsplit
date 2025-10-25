@@ -1,8 +1,11 @@
-import type {
-  CreateGoalInput,
-  GoalResponse,
-  UpdateGoalInput,
+import {
+  CreateGoalInputSchema,
+  UpdateGoalInputSchema,
+  type CreateGoalInput,
+  type GoalResponse,
+  type UpdateGoalInput,
 } from "@/app/api/goals/schemas";
+import { normalizeZodIssues } from "@/lib/validation/zod";
 
 export const currencies = [
   { label: "Indian Rupee (INR)", value: "INR" },
@@ -40,70 +43,52 @@ export const defaultState: FormState = {
   existingSavings: "0",
 };
 
+function toSchemaInput(state: FormState) {
+  return {
+    title: state.title,
+    targetAmount: state.targetAmount,
+    currency: state.currency,
+    targetDate: state.targetDate,
+    expectedRate: state.expectedReturn,
+    compounding: state.compounding,
+    contributionFrequency: state.contributionFrequency,
+    existingSavings: state.existingSavings.trim().length > 0 ? state.existingSavings : undefined,
+  };
+}
+
+function parseGoalFormState(state: FormState) {
+  return CreateGoalInputSchema.parse(toSchemaInput(state));
+}
+
 export function validateForm(state: FormState): FormErrors {
+  const result = CreateGoalInputSchema.safeParse(toSchemaInput(state));
+
+  if (result.success) {
+    return {};
+  }
+
   const errors: FormErrors = {};
-
-  if (!state.title.trim()) {
-    errors.title = "Add a descriptive title.";
-  }
-
-  const amount = Number(state.targetAmount);
-  if (!state.targetAmount.trim()) {
-    errors.targetAmount = "Enter how much the goal costs.";
-  } else if (Number.isNaN(amount) || amount <= 0) {
-    errors.targetAmount = "Use a positive number.";
-  }
-
-  if (!state.currency) {
-    errors.currency = "Pick a currency.";
-  }
-
-  if (!state.targetDate) {
-    errors.targetDate = "Choose when you'll need the money.";
-  }
-
-  const returnRate = Number(state.expectedReturn);
-  if (!state.expectedReturn.trim()) {
-    errors.expectedReturn = "Enter an expected yearly return.";
-  } else if (Number.isNaN(returnRate) || returnRate <= 0 || returnRate > 100) {
-    errors.expectedReturn = "Use a rate between 0 and 100%.";
-  }
-
-  const savings = Number(state.existingSavings);
-  if (state.existingSavings.trim() && (Number.isNaN(savings) || savings < 0)) {
-    errors.existingSavings = "Savings can't be negative.";
-  }
+  normalizeZodIssues(result.error.issues).forEach((issue) => {
+    const field = issue.path[0];
+    if (typeof field === "string" && field in defaultState && !errors[field as keyof FormState]) {
+      errors[field as keyof FormState] = issue.message;
+    }
+  });
 
   return errors;
 }
 
 export function extractFieldErrors(details: unknown): FormErrors {
-  if (!details || typeof details !== "object") {
-    return {};
-  }
+  const errors: FormErrors = {};
 
-  const issues = (details as { issues?: unknown }).issues;
-  if (!Array.isArray(issues)) {
-    return {};
-  }
-
-  return issues.reduce<FormErrors>((acc, issue) => {
-    if (!issue || typeof issue !== "object") {
-      return acc;
+  normalizeZodIssues(details).forEach((issue) => {
+    const field = issue.path[0];
+    if (typeof field === "string" && field in defaultState && !errors[field as keyof FormState]) {
+      errors[field as keyof FormState] = issue.message;
     }
+  });
 
-    const path = Array.isArray((issue as { path?: unknown }).path)
-      ? ((issue as { path?: unknown }).path as unknown[])
-      : [];
-    const message = (issue as { message?: unknown }).message;
-    const field = path[0];
-
-    if (typeof field === "string" && typeof message === "string" && field in defaultState) {
-      acc[field as keyof FormState] = message;
-    }
-
-    return acc;
-  }, {});
+  return errors;
 }
 
 function toDateInputValue(date: Date): string {
@@ -134,72 +119,56 @@ export function mapGoalToFormState(goal: GoalResponse): FormState {
 }
 
 export function buildCreatePayload(state: FormState): CreateGoalInput {
-  return {
-    title: state.title.trim(),
-    targetAmount: Number(state.targetAmount),
-    currency: state.currency,
-    targetDate: new Date(state.targetDate).toISOString(),
-    expectedRate: Number(state.expectedReturn),
-    compounding: state.compounding,
-    contributionFrequency: state.contributionFrequency,
-    existingSavings:
-      state.existingSavings.trim().length > 0 ? Number(state.existingSavings) : undefined,
-  };
+  return parseGoalFormState(state);
 }
 
 export function buildUpdatePayload(
   state: FormState,
   initial: FormState,
 ): UpdateGoalInput {
+  const next = parseGoalFormState(state);
+  const previous = parseGoalFormState(initial);
   const payload: Record<string, unknown> = {};
 
-  const nextTitle = state.title.trim();
-  const initialTitle = initial.title.trim();
-  if (nextTitle !== initialTitle) {
-    payload.title = nextTitle;
+  if (next.title !== previous.title) {
+    payload.title = next.title;
   }
 
-  const nextAmount = Number(state.targetAmount);
-  const initialAmount = Number(initial.targetAmount);
-  if (!Number.isNaN(nextAmount) && nextAmount !== initialAmount) {
-    payload.targetAmount = nextAmount;
+  if (next.targetAmount !== previous.targetAmount) {
+    payload.targetAmount = next.targetAmount;
   }
 
-  if (state.currency !== initial.currency) {
-    payload.currency = state.currency;
+  if (next.currency !== previous.currency) {
+    payload.currency = next.currency;
   }
 
-  if (state.targetDate && initial.targetDate) {
-    const nextDate = new Date(state.targetDate);
-    const initialDate = new Date(initial.targetDate);
-    if (nextDate.toISOString() !== initialDate.toISOString()) {
-      payload.targetDate = nextDate.toISOString();
-    }
-  } else if (state.targetDate !== initial.targetDate && state.targetDate) {
-    payload.targetDate = new Date(state.targetDate).toISOString();
+  if (next.targetDate.getTime() !== previous.targetDate.getTime()) {
+    payload.targetDate = next.targetDate;
   }
 
-  const nextRate = Number(state.expectedReturn);
-  const initialRate = Number(initial.expectedReturn);
-  if (!Number.isNaN(nextRate) && nextRate !== initialRate) {
-    payload.expectedRate = nextRate;
+  if (next.expectedRate !== previous.expectedRate) {
+    payload.expectedRate = next.expectedRate;
   }
 
-  if (state.compounding !== initial.compounding) {
-    payload.compounding = state.compounding;
+  if (next.compounding !== previous.compounding) {
+    payload.compounding = next.compounding;
   }
 
-  if (state.contributionFrequency !== initial.contributionFrequency) {
-    payload.contributionFrequency = state.contributionFrequency;
+  if (next.contributionFrequency !== previous.contributionFrequency) {
+    payload.contributionFrequency = next.contributionFrequency;
   }
 
-  const nextSavings = state.existingSavings.trim().length > 0 ? Number(state.existingSavings) : undefined;
-  const initialSavings = initial.existingSavings.trim().length > 0 ? Number(initial.existingSavings) : undefined;
-  if (nextSavings !== initialSavings && nextSavings !== undefined) {
+  const nextSavings = next.existingSavings ?? undefined;
+  const previousSavings = previous.existingSavings ?? undefined;
+  if (nextSavings !== previousSavings && nextSavings !== undefined) {
     payload.existingSavings = nextSavings;
   }
 
-  return payload as UpdateGoalInput;
+  if (Object.keys(payload).length === 0) {
+    return {} as UpdateGoalInput;
+  }
+
+  return UpdateGoalInputSchema.parse(payload);
 }
 
 export function hasChanges(state: FormState, initial: FormState): boolean {
