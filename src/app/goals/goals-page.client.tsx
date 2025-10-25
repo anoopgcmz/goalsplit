@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import type { GoalSummary } from "@/lib/api/goals";
+import type { GoalSummary } from "@/lib/goals/summary";
 import { fetchGoalSummaries } from "@/lib/api/goals";
 import { isApiError } from "@/lib/api/request";
 

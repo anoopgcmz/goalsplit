@@ -35,6 +35,8 @@ type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
 
 interface GoalPlanPageProps {
   goalId: string;
+  initialPlan?: GoalPlanResponse | null;
+  initialUser?: AuthUser | null;
 }
 
 interface ProjectionPoint {
@@ -1507,11 +1509,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 }
 
 export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
-  const { goalId } = props;
-  const [plan, setPlan] = useState<GoalPlanResponse | null>(null);
+  const { goalId, initialPlan = null, initialUser = null } = props;
+  const [plan, setPlan] = useState<GoalPlanResponse | null>(initialPlan);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(initialPlan == null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(initialUser);
   const planAbortRef = useRef<AbortController | null>(null);
 
   const loadPlan = useCallback(async () => {
@@ -1549,14 +1551,28 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
   }, [goalId]);
 
   useEffect(() => {
+    if (initialPlan) {
+      setPlan(initialPlan);
+      setIsLoading(false);
+      setError(null);
+
+      return () => {
+        planAbortRef.current?.abort();
+      };
+    }
+
     void loadPlan();
 
     return () => {
       planAbortRef.current?.abort();
     };
-  }, [loadPlan]);
+  }, [initialPlan, loadPlan]);
 
   useEffect(() => {
+    if (initialUser) {
+      return;
+    }
+
     const controller = new AbortController();
 
     const fetchCurrentUser = async () => {
@@ -1576,7 +1592,7 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     void fetchCurrentUser();
 
     return () => controller.abort();
-  }, []);
+  }, [initialUser]);
 
   const { formatCurrency, formatPercent, formatHorizon } = useFormatters({
     currency: plan?.goal.currency,
