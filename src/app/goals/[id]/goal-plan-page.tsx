@@ -26,7 +26,12 @@ import {
 } from "@/lib/financial";
 import { useFormatters } from "@/lib/hooks/use-formatters";
 import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
-import { fetchGoalPlan, sendGoalInvite } from "@/lib/api/goals";
+import {
+  fetchGoalPlan,
+  removeMember as removeGoalMember,
+  sendGoalInvite,
+  updateMembers as updateGoalMembers,
+} from "@/lib/api/goals";
 import { getCurrentUser } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/request";
 
@@ -538,8 +543,18 @@ const ScenarioCompare = (props: {
   formatCurrency: (value: number) => string;
   formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
   formatHorizon: (input: { years?: number; months?: number; totalMonths?: number } | number) => string;
+  onReset: () => Promise<void> | void;
+  isResetting: boolean;
 }) => {
-  const { plan, baseScenario, formatCurrency, formatPercent, formatHorizon } = props;
+  const {
+    plan,
+    baseScenario,
+    formatCurrency,
+    formatPercent,
+    formatHorizon,
+    onReset,
+    isResetting,
+  } = props;
   const [isOpen, setIsOpen] = useState(false);
   const [ratePercent, setRatePercent] = useState(baseScenario.ratePercent);
   const [timelineOffsetMonths, setTimelineOffsetMonths] = useState(0);
@@ -552,6 +567,11 @@ const ScenarioCompare = (props: {
     () => calculateScenario(plan, { ratePercent, timelineOffsetMonths }),
     [plan, ratePercent, timelineOffsetMonths],
   );
+
+  useEffect(() => {
+    setRatePercent(baseScenario.ratePercent);
+    setTimelineOffsetMonths(0);
+  }, [baseScenario.ratePercent]);
 
   const baseTargetDate = new Date(plan.goal.targetDate);
   const minAdjustment = -Math.round((plan.horizon.totalPeriods / plan.horizon.nPerYear) * 12);
@@ -614,6 +634,12 @@ const ScenarioCompare = (props: {
     }
 
     setShouldRenderControls(false);
+  };
+
+  const handleReset = () => {
+    setRatePercent(baseScenario.ratePercent);
+    setTimelineOffsetMonths(0);
+    void onReset();
   };
 
   const controlsContent = (
@@ -782,6 +808,16 @@ const ScenarioCompare = (props: {
           </div>
         </div>
       </div>
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleReset}
+          disabled={isResetting}
+        >
+          {isResetting ? "Resetting…" : "Reset to server plan"}
+        </Button>
+      </div>
     </div>
   );
 
@@ -895,6 +931,16 @@ const initializeMemberRows = (members: GoalPlanResponse["members"]): MemberRowSt
     fixedAmount: member.fixedAmount != null ? member.fixedAmount.toString() : "",
   }));
 
+const serializeRows = (rows: MemberRowState[]): string =>
+  JSON.stringify(
+    rows.map((row) => ({
+      userId: row.userId,
+      role: row.role,
+      splitPercent: row.splitPercent.trim(),
+      fixedAmount: row.fixedAmount.trim(),
+    })),
+  );
+
 const computeMemberAllocations = (
   rows: MemberRowState[],
   totalPerPeriod: number,
@@ -955,13 +1001,30 @@ interface MembersSectionProps {
   formatCurrency: (value: number) => string;
   formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
   canManageMembers: boolean;
+  onMembersUpdated?: () => Promise<void> | void;
+  isPlanRefreshing: boolean;
 }
 
 function MembersSection(props: MembersSectionProps): JSX.Element {
-  const { goalId, members, totalPerPeriod, formatCurrency, formatPercent, canManageMembers } = props;
+  const {
+    goalId,
+    members,
+    totalPerPeriod,
+    formatCurrency,
+    formatPercent,
+    canManageMembers,
+    onMembersUpdated,
+    isPlanRefreshing,
+  } = props;
   const { publish } = useToast();
   const [rows, setRows] = useState<MemberRowState[]>(() => initializeMemberRows(members));
+  const rowsRef = useRef<MemberRowState[]>(rows);
+  const lastSavedRef = useRef<string>(serializeRows(rows));
+  const isSavingRef = useRef(false);
+  const hasPendingSaveRef = useRef(false);
+  const [isSavingMembers, setIsSavingMembers] = useState(false);
   const [pendingRemovalUserId, setPendingRemovalUserId] = useState<string | null>(null);
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
   const baseId = useId();
   const splitHintId = `${baseId}-split-hint`;
   const fixedHintId = `${baseId}-fixed-hint`;
@@ -976,8 +1039,18 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const inviteHelperId = `${baseId}-invite-helper`;
 
   useEffect(() => {
-    setRows(initializeMemberRows(members));
+    const nextRows = initializeMemberRows(members);
+    setRows(nextRows);
+    rowsRef.current = nextRows;
+    lastSavedRef.current = serializeRows(nextRows);
+    hasPendingSaveRef.current = false;
+    isSavingRef.current = false;
+    setIsSavingMembers(false);
   }, [members]);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
 
   const computation = useMemo(
     () => computeMemberAllocations(rows, totalPerPeriod),
@@ -986,6 +1059,104 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
   const columnOrder: readonly EditableColumnKey[] = ["split", "fixed"];
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const commitChanges = useCallback(async () => {
+    if (!canManageMembers) {
+      return;
+    }
+
+    const snapshot = rowsRef.current;
+    const serialized = serializeRows(snapshot);
+
+    if (serialized === lastSavedRef.current) {
+      return;
+    }
+
+    if (isSavingRef.current) {
+      hasPendingSaveRef.current = true;
+      return;
+    }
+
+    isSavingRef.current = true;
+    hasPendingSaveRef.current = false;
+    setIsSavingMembers(true);
+
+    const payload = snapshot.map((row) => {
+      const splitValue = parseNumericInput(row.splitPercent);
+      const fixedValue = parseNumericInput(row.fixedAmount);
+
+      return {
+        userId: row.userId,
+        role: row.role,
+        splitPercent: splitValue ?? null,
+        fixedAmount: fixedValue ?? null,
+      };
+    });
+
+    try {
+      const response = await updateGoalMembers(goalId, { members: payload });
+      const serverMembers = new Map(
+        response.members.map((member) => [member.userId, member]),
+      );
+
+      const nextRows: MemberRowState[] = snapshot.map((row) => {
+        const serverMember = serverMembers.get(row.userId);
+        return {
+          ...row,
+          splitPercent:
+            serverMember?.splitPercent != null
+              ? serverMember.splitPercent.toString()
+              : "",
+          fixedAmount:
+            serverMember?.fixedAmount != null
+              ? serverMember.fixedAmount.toString()
+              : "",
+        };
+      });
+
+      const knownIds = new Set(nextRows.map((row) => row.userId));
+      response.members.forEach((member) => {
+        if (!knownIds.has(member.userId)) {
+          nextRows.push({
+            userId: member.userId,
+            role: member.role,
+            name: null,
+            email: undefined,
+            splitPercent:
+              member.splitPercent != null ? member.splitPercent.toString() : "",
+            fixedAmount:
+              member.fixedAmount != null ? member.fixedAmount.toString() : "",
+          });
+          knownIds.add(member.userId);
+        }
+      });
+
+      rowsRef.current = nextRows;
+      lastSavedRef.current = serializeRows(nextRows);
+      setRows(nextRows);
+
+      if (onMembersUpdated) {
+        await onMembersUpdated();
+      }
+    } catch (error) {
+      const message = isApiError(error)
+        ? error.message
+        : "We couldn't update these contributions. Check your connection and try again.";
+      publish({
+        title: "Update failed",
+        description: message,
+        variant: "error",
+      });
+    } finally {
+      isSavingRef.current = false;
+      setIsSavingMembers(false);
+
+      if (hasPendingSaveRef.current) {
+        hasPendingSaveRef.current = false;
+        void commitChanges();
+      }
+    }
+  }, [canManageMembers, goalId, onMembersUpdated, publish]);
 
   const percentWarningActive =
     computation.percentEligibleCount > 0 &&
@@ -1022,6 +1193,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     rowIndex: number,
     column: EditableColumnKey,
   ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+      void commitChanges();
+      return;
+    }
+
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault();
       const offset = event.key === "ArrowUp" ? -1 : 1;
@@ -1056,50 +1234,85 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   };
 
   const handleSplitChange = (rowIndex: number, value: string) => {
-    setRows((prev) =>
-      prev.map((row, index) => (index === rowIndex ? { ...row, splitPercent: value } : row)),
-    );
+    setRows((prev) => {
+      const next = prev.map((row, index) =>
+        index === rowIndex ? { ...row, splitPercent: value } : row,
+      );
+      rowsRef.current = next;
+      return next;
+    });
   };
 
   const handleFixedChange = (rowIndex: number, value: string) => {
-    setRows((prev) =>
-      prev.map((row, index) => (index === rowIndex ? { ...row, fixedAmount: value } : row)),
-    );
+    setRows((prev) => {
+      const next = prev.map((row, index) =>
+        index === rowIndex ? { ...row, fixedAmount: value } : row,
+      );
+      rowsRef.current = next;
+      return next;
+    });
   };
 
   const requestRemoveMember = (userId: string) => {
-    if (!canManageMembers) {
+    if (!canManageMembers || isRemovingMember) {
       return;
     }
 
     setPendingRemovalUserId(userId);
   };
 
-  const confirmRemoveMember = () => {
+  const confirmRemoveMember = async () => {
     if (!canManageMembers || !pendingRemovalUserId) {
       setPendingRemovalUserId(null);
       return;
     }
 
-    const removedMember = rows.find((row) => row.userId === pendingRemovalUserId) ?? null;
-    setRows((prev) => prev.filter((row) => row.userId !== pendingRemovalUserId));
+    setIsRemovingMember(true);
 
-    if (removedMember) {
-      let displayName = removedMember.email ?? "This collaborator";
-      if (typeof removedMember.name === "string") {
+    const removedMember =
+      rowsRef.current.find((row) => row.userId === pendingRemovalUserId) ?? null;
+
+    try {
+      await removeGoalMember(goalId, pendingRemovalUserId);
+
+      setRows((prev) => {
+        const next = prev.filter((row) => row.userId !== pendingRemovalUserId);
+        rowsRef.current = next;
+        lastSavedRef.current = serializeRows(next);
+        return next;
+      });
+
+      let displayName = removedMember?.email ?? "This collaborator";
+      if (typeof removedMember?.name === "string") {
         const normalizedName = removedMember.name.trim();
         if (normalizedName.length > 0) {
           displayName = normalizedName;
         }
       }
+
       publish({
-        title: "Collaborator removed",
+        title: "Removed",
         description: `${displayName} no longer has access to this goal.`,
         variant: "success",
       });
-    }
 
-    setPendingRemovalUserId(null);
+      setPendingRemovalUserId(null);
+
+      if (onMembersUpdated) {
+        await onMembersUpdated();
+      }
+    } catch (error) {
+      const message = isApiError(error)
+        ? error.message
+        : "We couldn't remove this collaborator. Check your connection and try again.";
+      publish({
+        title: "Removal failed",
+        description: message,
+        variant: "error",
+      });
+    } finally {
+      setIsRemovingMember(false);
+    }
   };
 
   const cancelRemoveMember = () => {
@@ -1133,6 +1346,9 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
             entry.row.splitPercent = nextValue;
           }
         });
+        if (updated) {
+          rowsRef.current = next;
+        }
         return updated ? next : prev;
       }
 
@@ -1145,6 +1361,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         }
       });
 
+      if (updated) {
+        rowsRef.current = next;
+      }
+
       return updated ? next : prev;
     });
 
@@ -1154,6 +1374,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         description: "Percent contributions now total 100%.",
         variant: "success",
       });
+      void commitChanges();
     }
   };
 
@@ -1363,6 +1584,9 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     inputMode="decimal"
                     onChange={(event) => handleSplitChange(rowIndex, event.target.value)}
                     onKeyDown={(event) => handleCellKeyDown(event, rowIndex, "split")}
+                    onBlur={() => {
+                      void commitChanges();
+                    }}
                     aria-labelledby={`${rowLabelId} ${splitHeaderId}`.trim()}
                     aria-describedby={splitDescribedBy.length > 0 ? splitDescribedBy : undefined}
                     placeholder="0"
@@ -1375,6 +1599,9 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     inputMode="decimal"
                     onChange={(event) => handleFixedChange(rowIndex, event.target.value)}
                     onKeyDown={(event) => handleCellKeyDown(event, rowIndex, "fixed")}
+                    onBlur={() => {
+                      void commitChanges();
+                    }}
                     aria-labelledby={`${rowLabelId} ${fixedHeaderId}`.trim()}
                     aria-describedby={fixedDescribedBy.length > 0 ? fixedDescribedBy : undefined}
                     placeholder="0"
@@ -1392,6 +1619,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                         type="button"
                         variant="ghost"
                         className="text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                        disabled={isRemovingMember}
                         onClick={() => requestRemoveMember(row.userId)}
                       >
                         Remove
@@ -1404,6 +1632,12 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           })}
         </TableBody>
       </Table>
+
+      {(isSavingMembers || isPlanRefreshing) && canManageMembers ? (
+        <p className="text-xs text-slate-500" role="status" aria-live="polite">
+          {isSavingMembers ? "Saving changes…" : "Refreshing plan…"}
+        </p>
+      ) : null}
 
       {canManageMembers ? (
         <Dialog
@@ -1490,9 +1724,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         <ConfirmDialog
           open={pendingRemovalRow != null}
           onCancel={cancelRemoveMember}
-          onConfirm={confirmRemoveMember}
+          onConfirm={() => {
+            void confirmRemoveMember();
+          }}
           confirmLabel="Remove"
+          loadingLabel="Removing…"
           tone="danger"
+          isConfirming={isRemovingMember}
           title="Remove collaborator?"
           description="They’ll immediately lose access to this shared goal."
         >
@@ -1510,20 +1748,28 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
 export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
   const { goalId, initialPlan = null, initialUser = null } = props;
+  const { publish } = useToast();
   const [plan, setPlan] = useState<GoalPlanResponse | null>(initialPlan);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(initialPlan == null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(initialUser);
   const planAbortRef = useRef<AbortController | null>(null);
 
-  const loadPlan = useCallback(async () => {
+  const loadPlan = useCallback(async (options?: { silent?: boolean }) => {
     planAbortRef.current?.abort();
     const controller = new AbortController();
     planAbortRef.current = controller;
 
+    const silent = options?.silent ?? false;
+
     try {
-      setIsLoading(true);
-      setError(null);
+      if (silent) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+        setError(null);
+      }
       const payload = await fetchGoalPlan(goalId, controller.signal);
       if (controller.signal.aborted) {
         return;
@@ -1536,19 +1782,39 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
         return;
       }
       if (isApiError(err)) {
-        setError(err.message);
+        if (silent) {
+          publish({
+            title: "Refresh failed",
+            description: err.message,
+            variant: "error",
+          });
+        } else {
+          setError(err.message);
+        }
       } else {
         const message =
           (err as Error).message || "We couldn't load this goal plan. Try again later.";
-        setError(message);
+        if (silent) {
+          publish({
+            title: "Refresh failed",
+            description: message,
+            variant: "error",
+          });
+        } else {
+          setError(message);
+        }
       }
     } finally {
       if (!controller.signal.aborted) {
-        setIsLoading(false);
+        if (silent) {
+          setIsRefreshing(false);
+        } else {
+          setIsLoading(false);
+        }
         planAbortRef.current = null;
       }
     }
-  }, [goalId]);
+  }, [goalId, publish]);
 
   useEffect(() => {
     if (initialPlan) {
@@ -1711,6 +1977,8 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
           formatCurrency={formatCurrency}
           formatPercent={formatPercent}
           canManageMembers={canManageMembers}
+          onMembersUpdated={() => loadPlan({ silent: true })}
+          isPlanRefreshing={isRefreshing}
         />
       ) : null}
 
@@ -1720,6 +1988,8 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
         formatCurrency={formatCurrency}
         formatPercent={formatPercent}
         formatHorizon={formatHorizon}
+        onReset={() => loadPlan({ silent: true })}
+        isResetting={isRefreshing}
       />
     </div>
   );
