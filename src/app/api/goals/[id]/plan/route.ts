@@ -11,7 +11,7 @@ import {
   createErrorResponse,
   handleZodError,
   isNextResponse,
-  objectIdToString,
+  buildGoalAccessFilter,
   parseObjectId,
   requireUserId,
   serializeGoal,
@@ -27,9 +27,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     await dbConnect();
 
     const goalId = parseObjectId(params.id);
-    const goalDoc = await GoalModel.findById(goalId);
+    const goalDoc = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
 
     if (!goalDoc) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "This goal belongs to someone else.",
+          403,
+          {
+            hint: "Ask the owner to share access with you.",
+            logLevel: "warn",
+            context: { goalId: params.id, operation: "plan" },
+          },
+        );
+      }
+
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have been removed.",
         logLevel: "info",
@@ -54,25 +69,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         ] as const;
       }),
     );
-
-    const normalizedUserId = objectIdToString(userId);
-    const isOwner = serialized.ownerId === normalizedUserId;
-    const isMember = serialized.members.some(
-      (member) => member.userId === normalizedUserId,
-    );
-
-    if (!isOwner && !isMember) {
-      return createErrorResponse(
-        "GOAL_FORBIDDEN",
-        "This goal belongs to someone else.",
-        403,
-        {
-          hint: "Ask the owner to share access with you.",
-          logLevel: "warn",
-          context: { goalId: params.id, operation: "plan" },
-        },
-      );
-    }
 
     const plan = buildGoalPlan(serialized, memberDetails);
 

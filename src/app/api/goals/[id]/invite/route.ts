@@ -12,7 +12,6 @@ import {
   createErrorResponse,
   handleZodError,
   isNextResponse,
-  objectIdToString,
   parseObjectId,
   requireUserId,
 } from "../../utils";
@@ -44,20 +43,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     await dbConnect();
 
     const goalId = parseObjectId(params.id);
-    const goal = await GoalModel.findById(goalId);
+    const goal = await GoalModel.findOne({ _id: goalId, ownerId: userId });
 
     if (!goal) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "Only the owner may invite collaborators",
+          403,
+        );
+      }
+
       return createErrorResponse("GOAL_NOT_FOUND", "Goal not found", 404);
-    }
-
-    const isOwner = objectIdToString(goal.ownerId) === objectIdToString(userId);
-
-    if (!isOwner) {
-      return createErrorResponse(
-        "GOAL_FORBIDDEN",
-        "Only the owner may invite collaborators",
-        403,
-      );
     }
 
     const rawBody: unknown = await request.json();

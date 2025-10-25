@@ -42,6 +42,14 @@ export const objectIdToString = (value: Types.ObjectId | string) =>
 export const isNextResponse = (value: unknown): value is NextResponse =>
   value instanceof NextResponse;
 
+export const buildGoalAccessFilter = (
+  goalId: Types.ObjectId,
+  userId: Types.ObjectId,
+) => ({
+  _id: goalId,
+  $or: [{ ownerId: userId }, { "members.userId": userId }],
+});
+
 interface LeanGoal {
   _id: Types.ObjectId | string;
   ownerId: Types.ObjectId | string;

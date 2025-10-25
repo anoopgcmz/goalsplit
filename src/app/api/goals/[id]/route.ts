@@ -13,6 +13,7 @@ import {
   createErrorResponse,
   handleZodError,
   isNextResponse,
+  buildGoalAccessFilter,
   objectIdToString,
   parseObjectId,
   requireUserId,
@@ -20,24 +21,6 @@ import {
 } from "../utils";
 
 type GoalDocument = HydratedDocument<Goal>;
-
-const isGoalMember = (goal: GoalDocument | null, userId: Types.ObjectId) => {
-  if (!goal) {
-    return false;
-  }
-
-  const goalObject = goal.toObject<Goal>();
-  const normalizedUserId = objectIdToString(userId);
-  const ownerIdMatches = objectIdToString(goalObject.ownerId) === normalizedUserId;
-
-  if (ownerIdMatches) {
-    return true;
-  }
-
-  return goalObject.members.some((member) => {
-    return objectIdToString(member.userId) === normalizedUserId;
-  });
-};
 
 const isGoalOwner = (goal: GoalDocument | null, userId: Types.ObjectId) => {
   if (!goal) {
@@ -58,27 +41,29 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     await dbConnect();
 
     const goalId = parseObjectId(params.id);
-    const goal = await GoalModel.findById(goalId);
+    const goal = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
 
     if (!goal) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "This goal belongs to someone else.",
+          403,
+          {
+            hint: "Ask the owner to share access with you.",
+            logLevel: "warn",
+            context: { goalId: params.id, operation: "get" },
+          },
+        );
+      }
+
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have been removed or you might not have access.",
         logLevel: "info",
         context: { goalId: params.id, operation: "get" },
       });
-    }
-
-    if (!isGoalMember(goal, userId)) {
-      return createErrorResponse(
-        "GOAL_FORBIDDEN",
-        "This goal belongs to someone else.",
-        403,
-        {
-          hint: "Ask the owner to share access with you.",
-          logLevel: "warn",
-          context: { goalId: params.id, operation: "get" },
-        },
-      );
     }
 
     return NextResponse.json(serializeGoal(goal));
@@ -113,9 +98,24 @@ export async function PATCH(
     await dbConnect();
 
     const goalId = parseObjectId(params.id);
-    const goal = await GoalModel.findById(goalId);
+    const goal = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
 
     if (!goal) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "This goal belongs to someone else.",
+          403,
+          {
+            hint: "Ask the owner to apply these changes.",
+            logLevel: "warn",
+            context: { goalId: params.id, operation: "patch" },
+          },
+        );
+      }
+
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have been removed or you might not have access.",
         logLevel: "info",
@@ -190,9 +190,24 @@ export async function DELETE(
     await dbConnect();
 
     const goalId = parseObjectId(params.id);
-    const goal = await GoalModel.findById(goalId);
+    const goal = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
 
     if (!goal) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "Only the owner can delete this goal.",
+          403,
+          {
+            hint: "Ask the owner to remove it for you.",
+            logLevel: "warn",
+            context: { goalId: params.id, operation: "delete" },
+          },
+        );
+      }
+
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have already been removed.",
         logLevel: "info",
