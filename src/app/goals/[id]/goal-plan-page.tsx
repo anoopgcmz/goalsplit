@@ -1358,6 +1358,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     rowIndex: number,
     column: EditableColumnKey,
   ) => {
+    if (!canManageMembers) {
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       event.currentTarget.blur();
@@ -1399,6 +1403,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   };
 
   const handleSplitChange = (rowIndex: number, value: string) => {
+    if (!canManageMembers) {
+      return;
+    }
+
     const userId = rowsRef.current[rowIndex]?.userId;
     setRows((prev) => {
       const next = prev.map((row, index) =>
@@ -1431,6 +1439,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   };
 
   const handleFixedChange = (rowIndex: number, value: string) => {
+    if (!canManageMembers) {
+      return;
+    }
+
     const userId = rowsRef.current[rowIndex]?.userId;
     setRows((prev) => {
       const next = prev.map((row, index) =>
@@ -1529,6 +1541,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   };
 
   const handleRebalance = () => {
+    if (!canManageMembers) {
+      return;
+    }
+
     let updated = false;
     setRows((prev) => {
       const next = prev.map((row) => ({ ...row }));
@@ -1740,6 +1756,21 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const inviteEmailErrorId = inviteEmailError ? `${baseId}-invite-email-error` : undefined;
   const inviteSplitErrorId = inviteSplitError ? `${baseId}-invite-split-error` : undefined;
   const inviteFixedErrorId = inviteFixedError ? `${baseId}-invite-fixed-error` : undefined;
+  const sectionDescription = canManageMembers
+    ? "Adjust how contributions are split between collaborators."
+    : "See how contributions are split between collaborators.";
+  const splitHintText = canManageMembers
+    ? "Enter the percent of the remaining contribution this member should cover."
+    : "Percent of the goal this member is responsible for.";
+  const fixedHintText = canManageMembers
+    ? "Enter a fixed contribution amount per period for this member."
+    : "Fixed contribution amount this member covers each period.";
+  const tableCaption = canManageMembers
+    ? "Manage each member's share of the goal. Required amounts update instantly as you edit the table."
+    : "Review each member's share of the goal. Only the owner can make changes.";
+  const percentWarningHelp = canManageMembers
+    ? "Adjust them to reach 100%, or let us rebalance automatically."
+    : "Ask the goal owner to rebalance or update the splits.";
 
   return (
     <section className="space-y-4" aria-labelledby={titleId}>
@@ -1749,7 +1780,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
             Members
           </h2>
           <p id={sectionDescriptionId} className="text-sm text-slate-600">
-            Adjust how contributions are split between collaborators.
+            {sectionDescription}
           </p>
         </div>
         {canManageMembers ? (
@@ -1760,10 +1791,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       </div>
 
       <p id={splitHintId} className="sr-only">
-        Enter the percent of the remaining contribution this member should cover.
+        {splitHintText}
       </p>
       <p id={fixedHintId} className="sr-only">
-        Enter a fixed contribution amount per period for this member.
+        {fixedHintText}
       </p>
 
       {percentWarningActive ? (
@@ -1778,11 +1809,14 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
               minimumFractionDigits: 1,
               maximumFractionDigits: 1,
             })}.
-            Adjust them to reach 100%, or let us rebalance automatically.
+            {" "}
+            {percentWarningHelp}
           </p>
-          <Button type="button" variant="secondary" onClick={handleRebalance}>
-            Rebalance to 100%
-          </Button>
+          {canManageMembers ? (
+            <Button type="button" variant="secondary" onClick={handleRebalance}>
+              Rebalance to 100%
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
@@ -1792,16 +1826,22 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
           role="alert"
         >
-          Fixed contributions total {formatCurrency(roundCurrency(computation.fixedTotal))} which
-          exceeds the required {formatCurrency(roundCurrency(computation.totalPerPeriod))} per
-          period. Reduce fixed amounts or adjust the splits.
+          <p>
+            Fixed contributions total {formatCurrency(roundCurrency(computation.fixedTotal))} which
+            exceeds the required {formatCurrency(roundCurrency(computation.totalPerPeriod))} per
+            period.
+          </p>
+          <p>
+            {canManageMembers
+              ? "Reduce fixed amounts or adjust the splits."
+              : "Ask the goal owner to reduce fixed amounts or adjust the splits."}
+          </p>
         </div>
       ) : null}
 
       <Table aria-describedby={tableDescribedBy} aria-labelledby={titleId}>
         <caption id={captionId} className="px-4 py-3 text-left text-sm text-slate-600">
-          Manage each member&apos;s share of the goal. Required amounts update instantly as you edit the
-          table.
+          {tableCaption}
         </caption>
         <TableHead>
           <TableRow>
@@ -1872,8 +1912,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     aria-labelledby={`${rowLabelId} ${splitHeaderId}`.trim()}
                     aria-describedby={splitDescribedBy.length > 0 ? splitDescribedBy : undefined}
                     aria-invalid={splitError ? "true" : undefined}
+                    aria-readonly={canManageMembers ? undefined : "true"}
                     className={splitError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
                     placeholder="0"
+                    readOnly={!canManageMembers}
                   />
                   {splitError ? (
                     <p id={splitErrorId} className="mt-1 text-xs text-rose-600">
@@ -1894,8 +1936,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     aria-labelledby={`${rowLabelId} ${fixedHeaderId}`.trim()}
                     aria-describedby={fixedDescribedBy.length > 0 ? fixedDescribedBy : undefined}
                     aria-invalid={fixedError ? "true" : undefined}
+                    aria-readonly={canManageMembers ? undefined : "true"}
                     className={fixedError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
                     placeholder="0"
+                    readOnly={!canManageMembers}
                   />
                   {fixedError ? (
                     <p id={fixedErrorId} className="mt-1 text-xs text-rose-600">
