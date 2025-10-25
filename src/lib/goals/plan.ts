@@ -57,12 +57,16 @@ export const buildGoalPlan = (
     tYears,
   );
 
-  const totalPerPeriod = requiredPaymentForFutureValue(
+  const rawTotalPerPeriod = requiredPaymentForFutureValue(
     netFutureValue,
     goal.expectedRate,
     contributionNPerYear,
     tYears,
   );
+
+  const totalPerPeriod = Number.isFinite(rawTotalPerPeriod)
+    ? rawTotalPerPeriod
+    : 0;
 
   const lumpSumNow = requiredLumpSumForFutureValue(
     netFutureValue,
@@ -79,7 +83,7 @@ export const buildGoalPlan = (
     );
   }
 
-  if (!Number.isFinite(totalPerPeriod)) {
+  if (!Number.isFinite(rawTotalPerPeriod)) {
     warnings.push(
       "No contribution periods remain; recurring contribution amount is undefined.",
     );
@@ -96,6 +100,10 @@ export const buildGoalPlan = (
   }, 0);
 
   let remaining = totalPerPeriod - fixedTotal;
+
+  if (!Number.isFinite(remaining)) {
+    remaining = 0;
+  }
 
   if (Number.isFinite(totalPerPeriod) && remaining < -EPSILON) {
     warnings.push(
