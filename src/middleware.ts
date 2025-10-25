@@ -4,9 +4,10 @@ import { NextResponse } from "next/server";
 import { getJwtSecret } from "@/lib/auth/jwt-secret";
 
 const SESSION_COOKIE_NAME = "session";
-const PUBLIC_PATHS = new Set(["/login", "/robots.txt"]);
-const PUBLIC_PREFIXES = ["/api/auth", "/shared/accept", "/_next"];
-const FAVICON_PREFIX = "/favicon";
+const PUBLIC_PATHS = new Set(["/login"]);
+const PUBLIC_PREFIXES = ["/shared/accept"];
+const STATIC_PATH_PREFIXES = ["/_next", "/favicon", "/static", "/assets"];
+const AUTH_API_PREFIX = "/api/auth";
 
 const JWT_SECRET = getJwtSecret();
 
@@ -126,17 +127,16 @@ const isValidSessionToken = async (token: string | undefined | null) => {
   return true;
 };
 
-const isPublicPath = (pathname: string) => {
-  if (PUBLIC_PATHS.has(pathname)) {
-    return true;
-  }
+const isStaticPath = (pathname: string) =>
+  STATIC_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+  pathname.endsWith(".ico") ||
+  pathname.endsWith(".txt") ||
+  pathname.endsWith(".json");
 
-  if (pathname.startsWith(FAVICON_PREFIX)) {
-    return true;
-  }
-
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-};
+const isPublicPath = (pathname: string) =>
+  PUBLIC_PATHS.has(pathname) ||
+  PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+  isStaticPath(pathname);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -157,7 +157,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isPublicPath(pathname)) {
+  if (isPublicPath(pathname) || pathname.startsWith(AUTH_API_PREFIX)) {
     return NextResponse.next();
   }
 

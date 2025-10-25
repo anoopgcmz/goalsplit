@@ -17,6 +17,7 @@ export const requestOtp = async (
     method: "POST",
     body: json(input),
     signal,
+    credentials: "include",
   });
 };
 
@@ -28,6 +29,7 @@ export const verifyOtp = async (
     method: "POST",
     body: json(input),
     signal,
+    credentials: "include",
   });
 
 export const getCurrentUser = async (signal?: AbortSignal): Promise<AuthUser | null> => {
@@ -35,6 +37,7 @@ export const getCurrentUser = async (signal?: AbortSignal): Promise<AuthUser | n
     const payload = await fetchJson<VerifyOtpResponse>("/api/me", {
       method: "GET",
       signal,
+      credentials: "include",
     });
 
     return payload.user;
@@ -52,6 +55,7 @@ export const logout = async (signal?: AbortSignal): Promise<void> => {
     await fetchJson<{ status: string }>("/api/auth/logout", {
       method: "POST",
       signal,
+      credentials: "include",
     });
   } catch (error) {
     if (isApiError(error) && error.status >= 500) {
