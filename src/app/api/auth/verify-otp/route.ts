@@ -5,6 +5,11 @@ import { ZodError } from "zod";
 import { dbConnect } from "@/lib/mongo";
 import OtpCodeModel from "@/models/otp-code";
 import UserModel from "@/models/user";
+import {
+  SESSION_COOKIE_NAME,
+  buildSessionCookieOptions,
+  createSessionToken,
+} from "@/lib/auth/session";
 
 import { VerifyOtpInputSchema, VerifyOtpResponseSchema } from "../schemas";
 import {
@@ -72,13 +77,17 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json(payload, { status: 200 });
 
-    response.cookies.set("session", user._id.toString(), {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-      path: "/",
+    const sessionToken = createSessionToken({
+      userId: user._id.toString(),
+      email: user.email,
+      maxAgeSeconds: SESSION_MAX_AGE_SECONDS,
     });
+
+    response.cookies.set(
+      SESSION_COOKIE_NAME,
+      sessionToken,
+      buildSessionCookieOptions(),
+    );
 
     return response;
   } catch (error) {

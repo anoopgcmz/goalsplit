@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { requestOtp, verifyOtp } from "@/lib/api/auth";
+import { isApiError } from "@/lib/api/request";
 
 const CODE_LENGTH = 6;
 const EMAIL_PATTERN = /^(?:[a-zA-Z0-9_'^&/+-])+(?:\.(?:[a-zA-Z0-9_'^&/+-])+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
@@ -26,9 +29,13 @@ export default function LoginPage(): JSX.Element {
   const [status, setStatus] = useState<StatusState>({ type: "idle", message: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(30);
-  const [resendAttempts, setResendAttempts] = useState(0);
 
   const isRateLimited = status.type === "rate-limit";
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next") ?? "/dashboard";
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const verifyAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (step !== "code" || resendCooldown <= 0 || isRateLimited) {
@@ -49,7 +56,6 @@ export default function LoginPage(): JSX.Element {
       setCode("");
       setCodeError("");
       setResendCooldown(30);
-      setResendAttempts(0);
     } else {
       setStatus({ type: "idle", message: "" });
     }
@@ -60,74 +66,152 @@ export default function LoginPage(): JSX.Element {
   const codeHelperId = useMemo(() => "code-helper", []);
   const errorRegionId = useMemo(() => "form-errors", []);
 
-  const handleSendCode = () => {
-    setEmailError("");
-    setStatus({ type: "idle", message: "" });
+  const sendOtp = useCallback(
+    async (mode: "initial" | "resend" = "initial") => {
+      const trimmedEmail = email.trim().toLowerCase();
+      setEmailError("");
+      setStatus({ type: "idle", message: "" });
 
-    if (!EMAIL_PATTERN.test(email.trim())) {
-      setEmailError("Enter a valid email address.");
-      setStatus({ type: "error", message: "Enter a valid email address." });
-      return;
-    }
+      if (!EMAIL_PATTERN.test(trimmedEmail)) {
+        const message = "Enter a valid email address.";
+        setEmailError(message);
+        setStatus({ type: "error", message });
+        return;
+      }
 
-    setIsLoading(true);
-    setStatus({ type: "loading", message: "Sending your code…" });
+      requestAbortRef.current?.abort();
+      const controller = new AbortController();
+      requestAbortRef.current = controller;
 
-    window.setTimeout(() => {
-      setIsLoading(false);
-      setStatus({ type: "success", message: "Check your inbox for a 6-digit code." });
-      setStep("code");
-    }, 1200);
-  };
+      setIsLoading(true);
+      setStatus({
+        type: "loading",
+        message: mode === "resend" ? "Sending a new code…" : "Sending your code…",
+      });
 
-  const handleVerifyCode = () => {
+      try {
+        const response = await requestOtp({ email: trimmedEmail }, controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setStatus({
+          type: "success",
+          message:
+            mode === "resend"
+              ? "We sent a fresh code. Check your inbox."
+              : "Check your inbox for a 6-digit code.",
+        });
+        setStep("code");
+        const cooldown = Math.max(30, Math.min(response.expiresInSeconds, 120));
+        setResendCooldown(cooldown);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (isApiError(error)) {
+          if (error.code === "AUTH_RATE_LIMITED") {
+            setStatus({ type: "rate-limit", message: error.message });
+            setResendCooldown(0);
+            return;
+          }
+
+          setStatus({ type: "error", message: error.message });
+          setEmailError(error.message);
+          return;
+        }
+
+        setStatus({
+          type: "error",
+          message: "We couldn’t send that code. Check your connection and try again.",
+        });
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+          requestAbortRef.current = null;
+        }
+      }
+    },
+    [email],
+  );
+
+  const handleSendCode = useCallback(() => {
+    void sendOtp("initial");
+  }, [sendOtp]);
+
+  const handleVerifyCode = useCallback(async () => {
     setCodeError("");
     setStatus({ type: "idle", message: "" });
 
-    if (code.length < CODE_LENGTH) {
-      setCodeError("Enter the 6-digit code from your email.");
-      setStatus({ type: "error", message: "Enter the 6-digit code from your email." });
+    if (code.trim().length < CODE_LENGTH) {
+      const message = "Enter the 6-digit code from your email.";
+      setCodeError(message);
+      setStatus({ type: "error", message });
       return;
     }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedCode = code.trim();
+
+    verifyAbortRef.current?.abort();
+    const controller = new AbortController();
+    verifyAbortRef.current = controller;
 
     setIsLoading(true);
     setStatus({ type: "loading", message: "Checking your code…" });
 
-    window.setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await verifyOtp({ email: trimmedEmail, code: trimmedCode }, controller.signal);
+      if (controller.signal.aborted) {
+        return;
+      }
+
       setStatus({
         type: "success",
         message: "You’re all set. We’ll finish signing you in now.",
       });
-    }, 1200);
-  };
+      void router.push(nextPath);
+      void router.refresh();
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return;
+      }
 
-  const handleResend = () => {
+      if (isApiError(error)) {
+        const message = error.message || "We couldn’t verify that code. Try again.";
+        setStatus({ type: "error", message });
+        setCodeError(message);
+        return;
+      }
+
+      setStatus({
+        type: "error",
+        message: "We couldn’t verify that code. Check your connection and try again.",
+      });
+      setCodeError("We couldn’t verify that code. Please try again.");
+    } finally {
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        verifyAbortRef.current = null;
+      }
+    }
+  }, [code, email, nextPath, router]);
+
+  const handleResend = useCallback(() => {
     if (isRateLimited || resendCooldown > 0) {
       return;
     }
 
-    setIsLoading(true);
-    setStatus({ type: "loading", message: "Sending a new code…" });
+    void sendOtp("resend");
+  }, [isRateLimited, resendCooldown, sendOtp]);
 
-    window.setTimeout(() => {
-      const nextAttempt = resendAttempts + 1;
-
-      if (nextAttempt >= 3) {
-        setStatus({
-          type: "rate-limit",
-          message: "Too many attempts. Try again in a few minutes.",
-        });
-        setResendCooldown(0);
-      } else {
-        setStatus({ type: "success", message: "We sent a fresh code. Check your inbox." });
-        setResendCooldown(30);
-      }
-
-      setResendAttempts(nextAttempt);
-      setIsLoading(false);
-    }, 1000);
-  };
+  useEffect(() => {
+    return () => {
+      requestAbortRef.current?.abort();
+      verifyAbortRef.current?.abort();
+    };
+  }, []);
 
   const statusTone =
     status.type === "success"
@@ -201,7 +285,7 @@ export default function LoginPage(): JSX.Element {
                 noValidate
                 onSubmit={(event) => {
                   event.preventDefault();
-                  handleVerifyCode();
+                  void handleVerifyCode();
                 }}
               >
                 <div className="space-y-2">
