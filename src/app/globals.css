@@ -31,3 +31,17 @@
     @apply bg-primary-200 text-slate-900;
   }
 }
+
+@layer utilities {
+  .text-primary {
+    @apply text-primary-600;
+  }
+
+  .text-muted-foreground {
+    @apply text-[#64748b];
+  }
+
+  .border-border\/50 {
+    border-color: rgb(226 232 240 / 0.5);
+  }
+}

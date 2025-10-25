@@ -2,15 +2,15 @@
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
+import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,7 +29,6 @@ import {
   requiredPaymentForFutureValue,
 } from "@/lib/financial";
 import { useFormatters } from "@/lib/hooks/use-formatters";
-import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 import {
   fetchGoalPlan,
   removeMember as removeGoalMember,
@@ -50,14 +49,12 @@ interface GoalPlanPageProps {
   initialUser?: AuthUser | null;
 }
 
-interface ProjectionPoint {
-  period: number;
-  total: number;
-  contributions: number;
-  growth: number;
+interface ScenarioOptions {
+  ratePercent?: number;
+  timelineOffsetMonths?: number;
 }
 
-interface ScenarioProjection {
+interface ScenarioMetrics {
   perPeriod: number;
   lumpSum: number;
   contributionsTotal: number;
@@ -66,17 +63,8 @@ interface ScenarioProjection {
   growthPercent: number;
   periodCount: number;
   targetDate: Date;
-  points: ProjectionPoint[];
   years: number;
   months: number;
-}
-
-interface ScenarioOptions {
-  ratePercent?: number;
-  timelineOffsetMonths?: number;
-}
-
-interface ScenarioMetrics extends ScenarioProjection {
   ratePercent: number;
 }
 
@@ -115,65 +103,6 @@ const deriveHorizonBreakdown = (totalPeriods: number, nPerYear: number) => {
 
 const roundCurrency = (value: number) =>
   Number.isFinite(value) ? Math.max(value, 0) : 0;
-
-const buildProjectionPoints = (
-  plan: GoalPlanResponse,
-  periodCount: number,
-  perPeriod: number,
-  lumpSum: number,
-  ratePercent: number,
-): ProjectionPoint[] => {
-  const frequency = plan.assumptions.contributionFrequency;
-  const nPerYear = contributionFrequencyToNPerYear(frequency);
-  const periodLabelCount = periodCount > 0 ? Math.max(1, Math.round(periodCount)) : 1;
-  const periodicRate = nPerYear > 0 ? ratePercent / 100 / nPerYear : 0;
-  const target = plan.goal.targetAmount;
-  const existing = plan.goal.existingSavings ?? 0;
-  const finitePerPeriod = Number.isFinite(perPeriod) ? perPeriod : 0;
-  const finiteLump = Number.isFinite(lumpSum) ? lumpSum : 0;
-
-  const points: ProjectionPoint[] = [];
-
-  let balance = existing + finiteLump;
-  let contributions = existing + finiteLump;
-
-  points.push({
-    period: 0,
-    total: Math.min(balance, target),
-    contributions,
-    growth: Math.max(Math.min(balance, target) - contributions, 0),
-  });
-
-  for (let i = 1; i <= periodLabelCount; i += 1) {
-    if (periodCount > 0) {
-      balance += finitePerPeriod;
-      contributions += finitePerPeriod;
-    }
-
-    if (periodicRate > 0) {
-      const growth = balance * periodicRate;
-      balance += growth;
-    }
-
-    const total = Math.min(balance, target);
-    const growthPortion = Math.max(total - contributions, 0);
-
-    points.push({
-      period: i,
-      total,
-      contributions,
-      growth: growthPortion,
-    });
-  }
-
-  const last = points[points.length - 1];
-  if (last) {
-    last.total = target;
-    last.growth = Math.max(target - contributions, 0);
-  }
-
-  return points;
-};
 
 const calculateScenario = (
   plan: GoalPlanResponse,
@@ -222,14 +151,6 @@ const calculateScenario = (
   const adjustedTargetDate = adjustmentMonths !== 0 ? addMonths(baseTargetDate, adjustmentMonths) : baseTargetDate;
   const breakdown = deriveHorizonBreakdown(totalPeriods, contributionNPerYear);
 
-  const points = buildProjectionPoints(
-    plan,
-    totalPeriods,
-    perPeriod,
-    lumpSum,
-    ratePercent,
-  );
-
   return {
     perPeriod,
     lumpSum,
@@ -239,284 +160,86 @@ const calculateScenario = (
     growthPercent,
     periodCount: totalPeriods,
     targetDate: adjustedTargetDate,
-    points,
     years: breakdown.years,
     months: breakdown.months,
     ratePercent,
   };
 };
 
-const ChartSection = (props: {
-  plan: GoalPlanResponse;
-  scenario: ScenarioMetrics;
-  formatCurrency: (value: number) => string;
-  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
-}) => {
-  const { plan, scenario, formatCurrency, formatPercent } = props;
-  const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
-  const chartId = "goal-plan-chart";
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const linePathRef = useRef<SVGPathElement | null>(null);
-  const areaPathRef = useRef<SVGPathElement | null>(null);
-
-  const maxValue = useMemo(() => {
-    const totals = scenario.points.map((point) => point.total);
-    return Math.max(plan.goal.targetAmount, ...totals, 1);
-  }, [plan.goal.targetAmount, scenario.points]);
-
-  const pathData = useMemo(() => {
-    if (scenario.points.length <= 1) {
-      return "";
-    }
-
-    return scenario.points
-      .map((point, index) => {
-        const x = (index / (scenario.points.length - 1)) * 100;
-        const y = 100 - (point.total / maxValue) * 100;
-        const command = index === 0 ? "M" : "L";
-        return `${command}${x.toFixed(2)},${y.toFixed(2)}`;
-      })
-      .join(" ");
-  }, [scenario.points, maxValue]);
-
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      const lineElement = linePathRef.current;
-      const areaElement = areaPathRef.current;
-
-      if (lineElement) {
-        lineElement.style.removeProperty("strokeDasharray");
-        lineElement.style.removeProperty("strokeDashoffset");
-        lineElement.style.removeProperty("transition");
-      }
-
-      if (areaElement) {
-        areaElement.style.removeProperty("opacity");
-        areaElement.style.removeProperty("transition");
-      }
-
-      return;
-    }
-
-    const lineElement = linePathRef.current;
-
-    if (!lineElement) {
-      return;
-    }
-
-    const areaElement = areaPathRef.current;
-    const length = lineElement.getTotalLength();
-    lineElement.style.strokeDasharray = `${length}`;
-    lineElement.style.strokeDashoffset = `${length}`;
-    lineElement.style.transition = "stroke-dashoffset 600ms ease-out";
-
-    if (areaElement) {
-      areaElement.style.opacity = "0";
-      areaElement.style.transition = "opacity 600ms ease-out";
-    }
-
-    const raf = requestAnimationFrame(() => {
-      lineElement.style.strokeDashoffset = "0";
-      if (areaElement) {
-        areaElement.style.opacity = "1";
-      }
-    });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      lineElement.style.removeProperty("strokeDasharray");
-      lineElement.style.removeProperty("strokeDashoffset");
-      lineElement.style.removeProperty("transition");
-      if (areaElement) {
-        areaElement.style.removeProperty("opacity");
-        areaElement.style.removeProperty("transition");
-      }
-    };
-  }, [pathData, prefersReducedMotion]);
-
-  return (
-    <section className="space-y-4" aria-labelledby="projection-title">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 id="projection-title" className="text-lg font-semibold text-slate-900">
-            Projection
-          </h2>
-          <p className="text-sm text-slate-600">
-            Total goal value over time based on current assumptions.
-          </p>
-        </div>
-      </div>
-
-      <figure aria-labelledby="projection-title" aria-describedby={`${chartId}-description`}>
-        <div className="relative h-64 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <svg
-            className="h-full w-full"
-            viewBox="0 0 100 100"
-            role="img"
-            aria-hidden="true"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="projection-line" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <rect width="100" height="100" fill="#eff6ff" />
-            {pathData ? (
-              <Fragment>
-                <path
-                  ref={linePathRef}
-                  d={`${pathData}`}
-                  fill="none"
-                  stroke="#1d4ed8"
-                  strokeWidth="1.5"
-                />
-                <path
-                  ref={areaPathRef}
-                  d={`${pathData} L100,100 L0,100 Z`}
-                  fill="url(#projection-line)"
-                  stroke="none"
-                />
-              </Fragment>
-            ) : null}
-          </svg>
-        </div>
-        <figcaption id={`${chartId}-description`} className="sr-only">
-          Data table of goal projection values across each {periodLabel}.
-        </figcaption>
-      </figure>
-
-      <div className="overflow-x-auto">
-        <table className="sr-only">
-          <caption className="sr-only">
-            Projection data table listing total value, contributions, and growth per {periodLabel}.
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">{periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}</th>
-              <th scope="col">Total value</th>
-              <th scope="col">Your contributions</th>
-              <th scope="col">Growth</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scenario.points.map((point) => (
-              <tr key={point.period}>
-                <th scope="row">{point.period}</th>
-                <td>{formatCurrency(point.total)}</td>
-                <td>{formatCurrency(point.contributions)}</td>
-                <td>{formatCurrency(point.growth)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-slate-600">Contributions vs growth</p>
-        <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="bg-primary-500"
-            style={{ width: `${scenario.contributionPercent}%` }}
-            aria-hidden="true"
-          />
-          <div
-            className="bg-emerald-400"
-            style={{ width: `${scenario.growthPercent}%` }}
-            aria-hidden="true"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-primary-500" aria-hidden="true" />
-            <span>
-              Your contributions: {formatCurrency(roundCurrency(scenario.contributionsTotal))} (
-              {formatPercent(scenario.contributionPercent, {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}
-              )
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
-            <span>
-              Growth: {formatCurrency(roundCurrency(scenario.growthTotal))} (
-              {formatPercent(scenario.growthPercent, {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}
-              )
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
 const PlanSummaryCard = (props: {
   plan: GoalPlanResponse;
-  formatCurrency: (value: number, currencyOverride?: string, options?: Intl.NumberFormatOptions) => string;
+  formatCurrency: (
+    value: number,
+    currencyOverride?: string,
+    options?: Intl.NumberFormatOptions,
+  ) => string;
   formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
-  formatDate: (value: Date | string | number, options?: { withDay?: boolean }) => string;
 }) => {
-  const { plan, formatCurrency, formatPercent, formatDate } = props;
+  const { plan, formatCurrency, formatPercent } = props;
   const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
+
+  const targetAmountLabel = formatCurrency(plan.goal.targetAmount);
+  const expectedReturnLabel = formatPercent(plan.assumptions.expectedRate, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  });
   const perPeriodValue = Number.isFinite(plan.totals.perPeriod)
     ? formatCurrency(roundCurrency(plan.totals.perPeriod))
     : null;
   const lumpSumValue = Number.isFinite(plan.totals.lumpSumNow)
     ? formatCurrency(roundCurrency(plan.totals.lumpSumNow))
     : null;
-  const targetAmount = formatCurrency(plan.goal.targetAmount);
-  const targetDate = formatDate(plan.goal.targetDate, { withDay: false });
-  const rate = plan.assumptions.expectedRate;
-  const rateLabel = formatPercent(rate, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
-  const compoundingLabel = plan.assumptions.compounding === "monthly" ? "monthly" : "yearly";
-  const existingSavings = plan.goal.existingSavings > 0 ? formatCurrency(plan.goal.existingSavings) : null;
+  const existingSavingsValue = plan.goal.existingSavings > 0
+    ? formatCurrency(roundCurrency(plan.goal.existingSavings))
+    : null;
 
-  const perPeriodSentence = perPeriodValue
-    ? `Put ${perPeriodValue} per ${periodLabel} starting now.`
-    : "Set a future date to see what to put in.";
-  const lumpSumSentence = lumpSumValue
-    ? `Or invest ${lumpSumValue} today instead.`
-    : "We can’t suggest a lump sum yet.";
-  const rateSentence =
-    rate === 0
-      ? "We’re assuming 0% growth; your plan depends only on what you put in."
-      : `We’re assuming ${rateLabel} per year, compounded ${compoundingLabel}.`;
+  const perPeriodLabel = perPeriodValue ? `${perPeriodValue} per ${periodLabel}` : "—";
+  const lumpSumLabel = lumpSumValue ?? "—";
 
   return (
-    <Card className="bg-white">
-      <CardHeader className="space-y-1">
-        <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Plan summary</p>
-        <h2 className="text-3xl font-semibold text-slate-900">Your plan in one glance</h2>
-      </CardHeader>
-      <CardContent className="space-y-3 text-base font-medium text-slate-900">
-        <p>You’re aiming for {targetAmount} by {targetDate}.</p>
-        <p>{perPeriodSentence}</p>
-        <p>{rateSentence}</p>
-        <p>{lumpSumSentence}</p>
-        {existingSavings ? <p>You already have {existingSavings}, which reduces what you need.</p> : null}
-      </CardContent>
-      <CardFooter className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-600">
-        <span className="inline-flex items-center gap-2">
-          <span className="font-semibold text-slate-700">Assumed return</span>
-          <InfoTooltip
-            label="What does assumed return mean?"
-            content="A guess for planning, not a recommendation."
-          />
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="font-semibold text-slate-700">Compounding</span>
-          <InfoTooltip
-            label="What is compounding?"
-            content="How often growth is added to your balance (monthly or yearly)."
-          />
-        </span>
-      </CardFooter>
+    <Card className="rounded-2xl border border-border/50 bg-white p-6 shadow-sm">
+      <div className="space-y-6">
+        <header className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Plan summary
+          </p>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Current plan snapshot</h2>
+        </header>
+
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium uppercase text-muted-foreground">Goal info</h3>
+            <div className="grid grid-cols-2 gap-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Target amount</span>
+              <span className="text-lg font-semibold text-primary">{targetAmountLabel}</span>
+              {existingSavingsValue ? (
+                <Fragment>
+                  <span className="text-sm font-medium text-muted-foreground">Existing savings</span>
+                  <span className="text-lg font-semibold text-primary">{existingSavingsValue}</span>
+                </Fragment>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+            <h3 className="text-sm font-medium uppercase text-muted-foreground">Contribution</h3>
+            <div className="grid grid-cols-2 gap-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Required contribution</span>
+              <span className="text-lg font-semibold text-primary">{perPeriodLabel}</span>
+              <span className="text-sm font-medium text-muted-foreground">Lump-sum equivalent</span>
+              <span className="text-lg font-semibold text-primary">{lumpSumLabel}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+            <h3 className="text-sm font-medium uppercase text-muted-foreground">Returns</h3>
+            <div className="grid grid-cols-2 gap-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Expected return / year</span>
+              <span className="text-lg font-semibold text-primary">{expectedReturnLabel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 };
@@ -539,113 +262,6 @@ const PlanWarnings = (props: { warnings?: string[] }) => {
         </div>
       ))}
     </div>
-  );
-};
-
-const TimelineNarrative = (props: {
-  plan: GoalPlanResponse;
-  formatCurrency: (value: number, currencyOverride?: string, options?: Intl.NumberFormatOptions) => string;
-  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
-  formatDate: (value: Date | string | number, options?: { withDay?: boolean }) => string;
-  formatHorizon: (input: { years?: number; months?: number; totalMonths?: number } | number) => string;
-}) => {
-  const { plan, formatCurrency, formatPercent, formatDate, formatHorizon } = props;
-  const rateLabel = formatPercent(plan.assumptions.expectedRate, {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
-  });
-  const perPeriodValue = Number.isFinite(plan.totals.perPeriod)
-    ? formatCurrency(roundCurrency(plan.totals.perPeriod))
-    : null;
-  const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
-  const targetAmount = formatCurrency(plan.goal.targetAmount);
-  const targetDate = formatDate(plan.goal.targetDate, { withDay: false });
-
-  const years = Math.max(plan.horizon.years, 0);
-  const months = Math.max(plan.horizon.months, 0);
-  const horizonParts: string[] = [];
-  if (years > 0) {
-    horizonParts.push(`${years} ${years === 1 ? "year" : "years"}`);
-  }
-  if (months > 0) {
-    horizonParts.push(`${months} ${months === 1 ? "month" : "months"}`);
-  }
-  const fallbackHorizon = formatHorizon({ years, months });
-  const horizonText =
-    horizonParts.length === 0
-      ? fallbackHorizon
-      : horizonParts.length === 2
-      ? `${horizonParts[0]} and ${horizonParts[1]}`
-      : horizonParts[0];
-
-  const sentence =
-    plan.assumptions.contributionFrequency === "monthly"
-      ? perPeriodValue
-        ? `Saving ${perPeriodValue} each ${periodLabel} at ${rateLabel} should get you to ${targetAmount} by ${targetDate}.`
-        : `Keep a future date so we can show how monthly savings reach ${targetAmount}.`
-      : `At this pace and return, in ${horizonText}, your plan is on track to reach ${targetAmount}.`;
-
-  const showShortHorizon = plan.horizon.totalPeriods < 1;
-
-  return (
-    <div className="space-y-2" aria-live="polite">
-      <p className="text-base font-medium text-slate-700">{sentence}</p>
-      {showShortHorizon ? (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          Growth has little effect in this short time.
-        </p>
-      ) : null}
-    </div>
-  );
-};
-
-const ExplainSection = (props: {
-  plan: GoalPlanResponse;
-  formatCurrency: (value: number, currencyOverride?: string, options?: Intl.NumberFormatOptions) => string;
-  formatDate: (value: Date | string | number, options?: { withDay?: boolean }) => string;
-  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
-}) => {
-  const { plan, formatCurrency, formatDate, formatPercent } = props;
-  const [isOpen, setIsOpen] = useState(false);
-  const contentId = useId();
-  const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
-  const perPeriodValue = Number.isFinite(plan.totals.perPeriod)
-    ? formatCurrency(roundCurrency(plan.totals.perPeriod))
-    : null;
-  const targetAmount = formatCurrency(plan.goal.targetAmount);
-  const targetDate = formatDate(plan.goal.targetDate, { withDay: false });
-
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white" aria-labelledby={`${contentId}-title`}>
-      <button
-        type="button"
-        className="flex w-full items-center justify-between gap-4 rounded-2xl px-4 py-3 text-left text-base font-semibold text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-        aria-expanded={isOpen}
-        aria-controls={contentId}
-        onClick={() => setIsOpen((prev) => !prev)}
-      >
-        <span id={`${contentId}-title`}>Explain it like I’m 12</span>
-        <span className="text-sm font-medium text-primary-600">{isOpen ? "Hide" : "Show"}</span>
-      </button>
-      <div
-        id={contentId}
-        hidden={!isOpen}
-        className="space-y-3 border-t border-slate-200 px-4 py-4 text-base text-slate-700"
-      >
-        <ul className="list-disc space-y-2 pl-5">
-          <li>You want {targetAmount} by {targetDate}.</li>
-          <li>
-            {perPeriodValue
-              ? `You’ll put in ${perPeriodValue} every ${periodLabel}.`
-              : "We need a target date before we can show your contributions."}
-          </li>
-          <li>We assume your money grows by {formatPercent(plan.assumptions.expectedRate)} each year (that’s an estimate, not a promise).</li>
-          {plan.goal.existingSavings > 0 ? (
-            <li>You already saved {formatCurrency(plan.goal.existingSavings)} today.</li>
-          ) : null}
-        </ul>
-      </div>
-    </section>
   );
 };
 
@@ -702,14 +318,18 @@ const SharedContributions = (props: {
 const ScenarioCompare = (props: {
   plan: GoalPlanResponse;
   baseScenario: ScenarioMetrics;
-  formatCurrency: (value: number, currencyOverride?: string, options?: Intl.NumberFormatOptions) => string;
+  formatCurrency: (
+    value: number,
+    currencyOverride?: string,
+    options?: Intl.NumberFormatOptions,
+  ) => string;
   formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
-  formatDate: (value: Date | string | number, options?: { withDay?: boolean }) => string;
+  formatHorizon: (input: { years?: number; months?: number; totalMonths?: number } | number) => string;
   onReset: () => Promise<void> | void;
   isResetting: boolean;
 }) => {
-  const { plan, baseScenario, formatCurrency, formatPercent, formatDate, onReset, isResetting } = props;
-  const [isOpen, setIsOpen] = useState(false);
+  const { plan, baseScenario, formatCurrency, formatPercent, formatHorizon, onReset, isResetting } = props;
+  const { publish } = useToast();
   const [ratePercent, setRatePercent] = useState(baseScenario.ratePercent);
   const [timelineOffsetMonths, setTimelineOffsetMonths] = useState(0);
 
@@ -723,150 +343,213 @@ const ScenarioCompare = (props: {
     setTimelineOffsetMonths(0);
   }, [baseScenario.ratePercent]);
 
-  const minAdjustment = -Math.round((plan.horizon.totalPeriods / plan.horizon.nPerYear) * 12);
-  const maxAdjustment = 240;
+  const minAdjustment = -36;
+  const maxAdjustment = 36;
   const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
 
-  const handleNudge = (delta: number) => {
-    setTimelineOffsetMonths((prev) => clamp(prev + delta, minAdjustment, maxAdjustment));
+  const isInfeasible = !Number.isFinite(adjustedScenario.perPeriod) || adjustedScenario.perPeriod <= 0;
+
+  const baseReturnLabel = formatPercent(baseScenario.ratePercent, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  });
+  const adjustedReturnLabel = formatPercent(ratePercent, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  });
+
+  const basePerPeriodValue = Number.isFinite(plan.totals.perPeriod)
+    ? roundCurrency(plan.totals.perPeriod)
+    : null;
+  const adjustedPerPeriodValue = Number.isFinite(adjustedScenario.perPeriod)
+    ? roundCurrency(adjustedScenario.perPeriod)
+    : null;
+
+  const toPerPeriodLabel = (value: number | null) => {
+    if (value == null) {
+      return "—";
+    }
+
+    const suffix = periodLabel === "month" ? "mo" : "yr";
+    return `${formatCurrency(value)} / ${suffix}`;
   };
+
+  const basePerPeriodLabel = toPerPeriodLabel(basePerPeriodValue);
+  const adjustedPerPeriodLabel = isInfeasible ? "—" : toPerPeriodLabel(adjustedPerPeriodValue);
+
+  const baseDurationLabel = formatHorizon({
+    years: plan.horizon.years,
+    months: plan.horizon.months,
+  });
+  const adjustedDurationLabel = formatHorizon({
+    years: adjustedScenario.years,
+    months: adjustedScenario.months,
+  });
+
+  const offsetLabel = timelineOffsetMonths === 0
+    ? "On schedule"
+    : `${timelineOffsetMonths > 0 ? "+" : "−"}${formatHorizon({ totalMonths: Math.abs(timelineOffsetMonths) })}`;
+
+  const firstUpdateRef = useRef(true);
+  const lastFeasibleRef = useRef<boolean | null>(null);
+  const lastPerPeriodRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (firstUpdateRef.current) {
+      firstUpdateRef.current = false;
+      lastFeasibleRef.current = !isInfeasible;
+      lastPerPeriodRef.current = adjustedPerPeriodValue ?? null;
+      return;
+    }
+
+    if (isInfeasible) {
+      if (lastFeasibleRef.current !== false) {
+        publish({
+          title: "Adjustment needs changes",
+          description: "This combination can’t reach the target. Try easing the date or return.",
+          variant: "error",
+        });
+      }
+      lastFeasibleRef.current = false;
+      lastPerPeriodRef.current = null;
+      return;
+    }
+
+    if (adjustedPerPeriodValue != null && adjustedPerPeriodValue !== lastPerPeriodRef.current) {
+      publish({
+        title: "Comparison updated",
+        description: `${formatCurrency(adjustedPerPeriodValue)} per ${periodLabel} required under this tweak.`,
+        variant: "success",
+      });
+      lastPerPeriodRef.current = adjustedPerPeriodValue;
+    }
+
+    lastFeasibleRef.current = true;
+  }, [adjustedPerPeriodValue, formatCurrency, isInfeasible, periodLabel, publish]);
 
   const handleReset = () => {
     setRatePercent(baseScenario.ratePercent);
     setTimelineOffsetMonths(0);
+    lastFeasibleRef.current = null;
+    lastPerPeriodRef.current = null;
     void onReset();
   };
 
-  const basePerPeriod = Number.isFinite(plan.totals.perPeriod)
-    ? formatCurrency(roundCurrency(plan.totals.perPeriod))
-    : "Not available";
-  const adjustedPerPeriod = Number.isFinite(adjustedScenario.perPeriod)
-    ? formatCurrency(roundCurrency(adjustedScenario.perPeriod))
-    : "Not available";
-
-  const baseDateLabel = formatDate(plan.goal.targetDate, { withDay: false });
-  const adjustedDateLabel = formatDate(adjustedScenario.targetDate, { withDay: false });
-  const isInfeasible = !Number.isFinite(adjustedScenario.perPeriod) || adjustedScenario.perPeriod <= 0;
-
-  let suggestion: string | null = null;
-  if (isInfeasible) {
-    const easedOffset = Math.min(maxAdjustment, Math.max(timelineOffsetMonths, 0) + 6);
-    const easedScenario = calculateScenario(plan, { ratePercent, timelineOffsetMonths: easedOffset });
-    const suggestedAmount = Number.isFinite(easedScenario.perPeriod)
-      ? easedScenario.perPeriod
-      : plan.totals.perPeriod;
-    const deltaValue = Math.max(
-      Math.abs(suggestedAmount - plan.totals.perPeriod),
-      Math.abs(plan.totals.perPeriod * 0.1),
-    );
-    const deltaLabel = formatCurrency(roundCurrency(deltaValue));
-    const easedDate = formatDate(addMonths(new Date(plan.goal.targetDate), easedOffset), { withDay: false });
-    suggestion = `This plan looks tight. Try adding ${deltaLabel} per ${periodLabel} or moving your date to ${easedDate}.`;
-  }
-
-  const nudgeButtons = [
-    { label: "−1 year", value: -12 },
-    { label: "−6 months", value: -6 },
-    { label: "+6 months", value: 6 },
-    { label: "+1 year", value: 12 },
-  ];
-
   return (
-    <section className="space-y-4" aria-labelledby="scenario-compare-title">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="scenario-compare-title" className="text-lg font-semibold text-slate-900">
-            Compare with quick tweaks
-          </h2>
-          <p className="text-sm text-slate-600">See how a new return or target date changes your plan.</p>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setIsOpen((prev) => !prev)}
-          aria-expanded={isOpen}
-          aria-controls="scenario-controls"
-        >
-          {isOpen ? "Close panel" : "Try a different return or date"}
-        </Button>
-      </div>
+    <motion.section
+      layout
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      aria-labelledby="quick-tweaks-title"
+      className="space-y-6"
+    >
+      <Card className="rounded-2xl border border-border/50 bg-white p-6 shadow-sm">
+        <div className="space-y-6">
+          <header className="space-y-2">
+            <p
+              id="quick-tweaks-title"
+              className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground"
+            >
+              Compare with Quick Tweaks
+            </p>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Adjust assumptions in real time
+            </h2>
+          </header>
 
-      {isOpen ? (
-        <div id="scenario-controls" className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <label htmlFor="compare-rate" className="flex items-center justify-between text-sm font-medium text-slate-700">
-                  <span>Assumed return</span>
-                  <span>{formatPercent(ratePercent, { maximumFractionDigits: 1, minimumFractionDigits: 0 })}</span>
+          <div className="space-y-6" aria-live="polite">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label htmlFor="quick-tweaks-rate" className="text-sm font-medium text-muted-foreground">
+                  Expected return (% per year)
                 </label>
-                <input
-                  id="compare-rate"
-                  type="range"
-                  min={0}
-                  max={20}
-                  step={0.5}
-                  value={ratePercent}
-                  onChange={(event) => setRatePercent(Number(event.target.value))}
-                  className="w-full"
-                />
-                <p className="text-xs text-slate-500">Slide between 0% and 20% to test other growth guesses.</p>
+                <span className="text-sm font-semibold text-slate-900">{adjustedReturnLabel}</span>
               </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-slate-700">Nudge the date</p>
-                <div className="flex flex-wrap gap-2">
-                  {nudgeButtons.map((button) => (
-                    <Button
-                      key={button.label}
-                      type="button"
-                      variant="secondary"
-                      className="px-3 py-1 text-sm"
-                      onClick={() => handleNudge(button.value)}
-                    >
-                      {button.label}
-                    </Button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-500">
-                  Current offset: {timelineOffsetMonths} months. New date becomes {adjustedDateLabel}.
-                </p>
+              <input
+                id="quick-tweaks-rate"
+                type="range"
+                min={0}
+                max={20}
+                step={0.5}
+                value={ratePercent}
+                onChange={(event) => setRatePercent(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
+                aria-describedby="quick-tweaks-rate-hint"
+              />
+              <div id="quick-tweaks-rate-hint" className="flex justify-between text-xs text-muted-foreground">
+                <span>0%</span>
+                <span>20%</span>
               </div>
             </div>
 
-            <div className="space-y-4" aria-live="polite">
-              <div className="grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Original</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">{basePerPeriod}</p>
-                  <p className="text-xs text-slate-600">Per {periodLabel}</p>
-                  <p className="mt-3 text-sm font-medium text-slate-900">{baseDateLabel}</p>
-                  <p className="text-xs text-slate-600">Target date</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Adjusted</p>
-                  <p className="mt-2 text-sm font-medium text-slate-900">{adjustedPerPeriod}</p>
-                  <p className="text-xs text-slate-600">Per {periodLabel}</p>
-                  <p className="mt-3 text-sm font-medium text-slate-900">{adjustedDateLabel}</p>
-                  <p className="text-xs text-slate-600">Target date</p>
-                </div>
+            <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+              <div className="flex items-center justify-between">
+                <label htmlFor="quick-tweaks-timeline" className="text-sm font-medium text-muted-foreground">
+                  Target date offset
+                </label>
+                <span className="text-sm font-semibold text-slate-900">{offsetLabel}</span>
               </div>
-              {suggestion ? (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
-                  {suggestion}
-                </p>
-              ) : null}
+              <input
+                id="quick-tweaks-timeline"
+                type="range"
+                min={minAdjustment}
+                max={maxAdjustment}
+                step={3}
+                value={timelineOffsetMonths}
+                onChange={(event) => setTimelineOffsetMonths(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
+                aria-describedby="quick-tweaks-timeline-hint"
+              />
+              <div id="quick-tweaks-timeline-hint" className="flex justify-between text-xs text-muted-foreground">
+                <span>−3 yrs</span>
+                <span>On track</span>
+                <span>+3 yrs</span>
+              </div>
             </div>
-          </div>
 
-          <div className="flex justify-end">
-            <Button type="button" variant="secondary" onClick={handleReset} disabled={isResetting}>
-              {isResetting ? "Resetting…" : "Reset to original"}
-            </Button>
+            <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
+              <div className="overflow-hidden rounded-xl border border-border/50">
+                <table className="min-w-full table-fixed">
+                  <thead className="bg-slate-50">
+                    <tr className="text-left text-sm font-medium text-muted-foreground">
+                      <th scope="col" className="px-4 py-3 font-medium">Setting</th>
+                      <th scope="col" className="px-4 py-3 font-medium">Original</th>
+                      <th scope="col" className="px-4 py-3 font-medium">Adjusted</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50 text-sm">
+                    <tr className="text-slate-900">
+                      <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Expected return
+                      </th>
+                      <td className="px-4 py-3 text-lg font-semibold text-primary">{baseReturnLabel}</td>
+                      <td className="px-4 py-3 text-lg font-semibold text-primary">{adjustedReturnLabel}</td>
+                    </tr>
+                    <tr className="text-slate-900">
+                      <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">Duration</th>
+                      <td className="px-4 py-3 text-lg font-semibold text-primary">{baseDurationLabel}</td>
+                      <td className="px-4 py-3 text-lg font-semibold text-primary">{adjustedDurationLabel}</td>
+                    </tr>
+                    <tr className="text-slate-900">
+                      <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">
+                        Required investment
+                      </th>
+                      <td className="px-4 py-3 text-lg font-semibold text-primary">{basePerPeriodLabel}</td>
+                      <td className="px-4 py-3 text-lg font-semibold text-primary">{adjustedPerPeriodLabel}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="button" variant="secondary" onClick={handleReset} disabled={isResetting}>
+                {isResetting ? "Resetting…" : "Reset to original"}
+              </Button>
+            </div>
           </div>
         </div>
-      ) : null}
-    </section>
+      </Card>
+    </motion.section>
   );
 };
 
@@ -2340,52 +2023,13 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
 
       <PlanWarnings warnings={plan.warnings} />
 
-      <div className="space-y-10 lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start lg:gap-10">
-        <div className="space-y-6">
-          <PlanSummaryCard
-            plan={plan}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-            formatDate={formatDate}
-          />
-          <TimelineNarrative
-            plan={plan}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-            formatDate={formatDate}
-            formatHorizon={formatHorizon}
-          />
-          <ExplainSection
-            plan={plan}
-            formatCurrency={formatCurrency}
-            formatDate={formatDate}
-            formatPercent={formatPercent}
-          />
-          <SharedContributions
-            plan={plan}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-          />
-        </div>
+      <PlanSummaryCard plan={plan} formatCurrency={formatCurrency} formatPercent={formatPercent} />
 
-        <div className="space-y-6">
-          <ChartSection
-            plan={plan}
-            scenario={baseScenario}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-          />
-          <ScenarioCompare
-            plan={plan}
-            baseScenario={baseScenario}
-            formatCurrency={formatCurrency}
-            formatPercent={formatPercent}
-            formatDate={formatDate}
-            onReset={() => loadPlan({ silent: true })}
-            isResetting={isRefreshing}
-          />
-        </div>
-      </div>
+      <SharedContributions
+        plan={plan}
+        formatCurrency={formatCurrency}
+        formatPercent={formatPercent}
+      />
 
       {showMembersSection ? (
         <MembersSection
@@ -2399,6 +2043,16 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
           isPlanRefreshing={isRefreshing}
         />
       ) : null}
+
+      <ScenarioCompare
+        plan={plan}
+        baseScenario={baseScenario}
+        formatCurrency={formatCurrency}
+        formatPercent={formatPercent}
+        formatHorizon={formatHorizon}
+        onReset={() => loadPlan({ silent: true })}
+        isResetting={isRefreshing}
+      />
     </div>
   );
 }

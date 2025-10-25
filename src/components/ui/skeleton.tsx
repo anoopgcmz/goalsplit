@@ -10,7 +10,7 @@ export function Skeleton(props: SkeletonProps): JSX.Element {
   return (
     <div
       className={cn(
-        "animate-pulse rounded-2xl bg-slate-200",
+        "animate-[pulse_1.2s_ease-in-out_infinite] rounded-2xl bg-slate-200",
         className,
       )}
       aria-hidden="true"

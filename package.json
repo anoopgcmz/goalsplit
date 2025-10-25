@@ -13,6 +13,7 @@
     "test:quick": "playwright test --config=playwright.quick.config.ts"
   },
   "dependencies": {
+    "framer-motion": "^11.0.0",
     "mongoose": "^8.6.0",
     "next": "^15.0.0",
     "react": "18.3.1",
