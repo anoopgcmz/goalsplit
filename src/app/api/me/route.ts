@@ -1,27 +1,17 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { dbConnect } from "@/lib/mongo";
-import UserModel from "@/models/user";
+import { getUserFromCookie } from "@/lib/auth/server";
 
 import { VerifyOtpResponseSchema } from "../auth/schemas";
 import {
   createAuthErrorResponse,
   handleAuthZodError,
-  requireSessionUserId,
 } from "../auth/utils";
 
-export async function GET(request: NextRequest) {
+export async function GET(): Promise<NextResponse> {
   try {
-    await dbConnect();
-
-    const userIdOrResponse = requireSessionUserId(request);
-    if (userIdOrResponse instanceof NextResponse) {
-      return userIdOrResponse;
-    }
-
-    const user = await UserModel.findById(userIdOrResponse);
+    const user = await getUserFromCookie();
 
     if (!user) {
       return createAuthErrorResponse(
@@ -31,17 +21,13 @@ export async function GET(request: NextRequest) {
         {
           hint: "Request a fresh sign-in code to continue.",
           logLevel: "warn",
-          context: { userId: userIdOrResponse.toString(), operation: "me" },
+          context: { operation: "me", reason: "user-not-found" },
         },
       );
     }
 
     const payload = VerifyOtpResponseSchema.parse({
-      user: {
-        id: user._id.toString(),
-        email: user.email,
-        name: user.name ?? null,
-      },
+      user,
     });
 
     return NextResponse.json(payload, { status: 200 });
