@@ -25,22 +25,22 @@ const DEFAULT_SUMMARY_QUERY: GoalListQuery = {
 
 type GoalMemberRole = GoalResponse["members"][number]["role"];
 
-type MemberContribution = {
+interface MemberContribution {
   userId: string;
   role: GoalMemberRole;
   splitPercent?: number | null;
   fixedAmount?: number | null;
-};
+}
 
-export type UpdateGoalMembersInput = {
+export interface UpdateGoalMembersInput {
   members: MemberContribution[];
-};
+}
 
-export type InviteCollaboratorInput = {
+export interface InviteCollaboratorInput {
   email: string;
   defaultSplitPercent?: number;
   fixedAmount?: number | null;
-};
+}
 
 function buildQueryString(query?: Partial<GoalListQuery>): string {
   if (!query) {

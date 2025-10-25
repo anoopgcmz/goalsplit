@@ -43,7 +43,7 @@ function resolveErrorMessage(status: number, fallback?: string): string {
     return ERROR_MESSAGE_BY_STATUS[500];
   }
 
-  if (fallback && fallback.trim()) {
+  if (fallback?.trim()) {
     return fallback;
   }
 
@@ -91,6 +91,42 @@ function shouldSerializeBody(body: unknown): body is Record<string, unknown> | u
   return typeof body === "object" || typeof body === "number" || typeof body === "boolean";
 }
 
+function isBodyInitLike(value: unknown): value is BodyInit | null | undefined {
+  if (value == null) {
+    return true;
+  }
+
+  if (typeof value === "string") {
+    return true;
+  }
+
+  if (typeof Blob !== "undefined" && value instanceof Blob) {
+    return true;
+  }
+
+  if (typeof FormData !== "undefined" && value instanceof FormData) {
+    return true;
+  }
+
+  if (typeof URLSearchParams !== "undefined" && value instanceof URLSearchParams) {
+    return true;
+  }
+
+  if (typeof ReadableStream !== "undefined" && value instanceof ReadableStream) {
+    return true;
+  }
+
+  if (typeof ArrayBuffer !== "undefined" && value instanceof ArrayBuffer) {
+    return true;
+  }
+
+  if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView(value)) {
+    return true;
+  }
+
+  return false;
+}
+
 function parseJson(text: string): unknown {
   if (!text) {
     return undefined;
@@ -127,23 +163,28 @@ function extractDetails(data: unknown): unknown {
 }
 
 export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Promise<T> {
-  const { schema, headers, body, ...rest } = init;
+  const { schema, headers, body, cache: cacheMode, ...rest } = init;
 
   const finalHeaders = new Headers(headers ?? {});
-  let finalBody: BodyInit | null | undefined = body as BodyInit | null | undefined;
+  let finalBody: BodyInit | null | undefined;
 
   if (shouldSerializeBody(body)) {
     finalBody = JSON.stringify(body);
     if (!finalHeaders.has("Content-Type")) {
       finalHeaders.set("Content-Type", "application/json");
     }
+  } else if (isBodyInitLike(body)) {
+    finalBody = body;
+  } else {
+    finalBody = undefined;
   }
 
   const requestInit: RequestInit = {
     ...rest,
     headers: finalHeaders,
-    body: finalBody === undefined ? undefined : finalBody,
+    body: finalBody,
     credentials: "include",
+    cache: cacheMode ?? "no-store",
   };
 
   let response: Response;
@@ -165,7 +206,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Pro
 
   if (schema) {
     try {
-      return schema.parse(data) as T;
+      return schema.parse(data);
     } catch (error) {
       if (error instanceof ZodError) {
         throw new ApiError(422, ERROR_MESSAGE_BY_STATUS[422], error.issues);
