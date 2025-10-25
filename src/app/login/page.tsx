@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -33,8 +33,19 @@ export default function LoginPage(): JSX.Element {
 
   const isRateLimited = status.type === "rate-limit";
   const router = useRouter();
+  const searchParams = useSearchParams();
   const requestAbortRef = useRef<AbortController | null>(null);
   const verifyAbortRef = useRef<AbortController | null>(null);
+
+  const nextPath = useMemo(() => {
+    const requested = searchParams.get("next");
+
+    if (!requested?.startsWith("/")) {
+      return "/dashboard";
+    }
+
+    return requested;
+  }, [searchParams]);
 
   useEffect(() => {
     if (step !== "code" || resendCooldown <= 0 || isRateLimited) {
@@ -170,7 +181,7 @@ export default function LoginPage(): JSX.Element {
         type: "success",
         message: "You’re all set. We’ll finish signing you in now.",
       });
-      void router.replace("/dashboard");
+      void router.replace(nextPath);
       void router.refresh();
     } catch (error) {
       if (controller.signal.aborted) {
@@ -195,7 +206,7 @@ export default function LoginPage(): JSX.Element {
         verifyAbortRef.current = null;
       }
     }
-  }, [code, email, router]);
+  }, [code, email, router, nextPath]);
 
   const handleResend = useCallback(() => {
     if (isRateLimited || resendCooldown > 0) {
