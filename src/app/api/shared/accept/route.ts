@@ -100,6 +100,11 @@ const rebalancePercentages = (goal: GoalDocument | null) => {
 
 export async function GET(request: NextRequest) {
   try {
+    const userIdOrResponse = requireUserId(request);
+    if (isNextResponse(userIdOrResponse)) {
+      return userIdOrResponse;
+    }
+    const userId = userIdOrResponse;
     await dbConnect();
 
     const rawToken = request.nextUrl.searchParams.get("token") ?? "";
@@ -141,9 +146,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const [goal, inviter] = await Promise.all([
+    const [goal, inviter, user] = await Promise.all([
       GoalModel.findById(invite.goalId),
       UserModel.findById(invite.createdBy),
+      UserModel.findById(userId),
     ]);
 
     if (!goal) {
@@ -155,6 +161,35 @@ export async function GET(request: NextRequest) {
           goalId: invite.goalId.toString(),
           operation: "preview-invite",
         },
+      });
+    }
+
+    if (!user) {
+      return createErrorResponse("GOAL_UNAUTHORIZED", "We could not verify your account for this invitation.", 401, {
+        hint: "Please sign in again and retry the link.",
+        logLevel: "warn",
+        context: { userId: objectIdToString(userId), operation: "preview-invite" },
+      });
+    }
+
+    if (normaliseEmail(user.email) !== normaliseEmail(invite.email)) {
+      return createErrorResponse("GOAL_FORBIDDEN", "This invitation was sent to a different email address.", 403, {
+        hint: "Ask the goal owner to invite your current email.",
+        logLevel: "warn",
+        context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+      });
+    }
+
+    const normalizedUserId = objectIdToString(userId);
+    const isAlreadyMember = goal.members.some((member) => {
+      return objectIdToString(member.userId) === normalizedUserId;
+    });
+
+    if (isAlreadyMember) {
+      return createErrorResponse("GOAL_CONFLICT", "You already collaborate on this goal.", 409, {
+        hint: "You can view the goal from your dashboard.",
+        logLevel: "info",
+        context: { inviteId: invite._id.toString(), operation: "preview-invite" },
       });
     }
 
@@ -194,13 +229,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const body: unknown = await request.json();
     const parsedBody = AcceptInviteSchema.parse(body);

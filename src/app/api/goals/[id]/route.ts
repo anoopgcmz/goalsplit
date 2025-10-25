@@ -50,13 +50,12 @@ const isGoalOwner = (goal: GoalDocument | null, userId: Types.ObjectId) => {
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const goalId = parseObjectId(params.id);
     const goal = await GoalModel.findById(goalId);
@@ -106,13 +105,12 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const goalId = parseObjectId(params.id);
     const goal = await GoalModel.findById(goalId);
@@ -184,13 +182,12 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const goalId = parseObjectId(params.id);
     const goal = await GoalModel.findById(goalId);

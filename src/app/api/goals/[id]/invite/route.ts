@@ -36,13 +36,12 @@ const CreateInviteInputSchema = z
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const goalId = parseObjectId(params.id);
     const goal = await GoalModel.findById(goalId);

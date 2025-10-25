@@ -30,13 +30,12 @@ const EPSILON = 1e-6;
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const goalId = parseObjectId(params.id);
     const goalDoc = await GoalModel.findById(goalId);

@@ -23,14 +23,14 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
 
     const userId = userIdOrResponse;
+    await dbConnect();
+
     const query = parseContributionListQuery(request);
 
     const filter: FilterQuery<Contribution> = {
@@ -74,13 +74,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await dbConnect();
-
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
       return userIdOrResponse;
     }
     const userId = userIdOrResponse;
+    await dbConnect();
 
     const body: unknown = await request.json();
     const parsedBody = UpsertContributionInputSchema.parse(body);
