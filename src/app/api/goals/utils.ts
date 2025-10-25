@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import type { HydratedDocument } from "mongoose";
 import { Types } from "mongoose";
 import { ZodError } from "zod";
 
@@ -120,6 +121,60 @@ export const serializeGoal = (goal: Goal | GoalDoc | LeanGoal): GoalResponse => 
   };
 
   return GoalResponseSchema.parse(serialized);
+};
+
+export const rebalancePercentages = (goal: HydratedDocument<Goal> | null) => {
+  if (!goal) {
+    return;
+  }
+
+  const members = goal.members.map((member) => ({
+    userId: member.userId,
+    role: member.role,
+    splitPercent: member.splitPercent,
+    fixedAmount: member.fixedAmount ?? undefined,
+  }));
+
+  const percentMembers = members.filter((member) => member.fixedAmount == null);
+
+  if (percentMembers.length === 0) {
+    goal.set({ members });
+    return;
+  }
+
+  const ownerMember = percentMembers.find((member) => member.role === "owner");
+
+  if (!ownerMember) {
+    goal.set({ members });
+    return;
+  }
+
+  const collaboratorMembers = percentMembers.filter((member) => member.role !== "owner");
+
+  if (collaboratorMembers.length === 0) {
+    ownerMember.splitPercent = 100;
+    goal.set({ members });
+    return;
+  }
+
+  const collaboratorTotal = collaboratorMembers.reduce((sum, member) => {
+    return sum + (member.splitPercent ?? 0);
+  }, 0);
+
+  if (collaboratorTotal > 100) {
+    const scale = collaboratorTotal === 0 ? 0 : 100 / collaboratorTotal;
+    collaboratorMembers.forEach((member) => {
+      member.splitPercent = (member.splitPercent ?? 0) * scale;
+    });
+  }
+
+  const adjustedTotal = collaboratorMembers.reduce((sum, member) => {
+    return sum + (member.splitPercent ?? 0);
+  }, 0);
+
+  ownerMember.splitPercent = Math.max(0, 100 - adjustedTotal);
+
+  goal.set({ members });
 };
 
 export const parseGoalListQuery = (request: NextRequest) => {

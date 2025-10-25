@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { HydratedDocument } from "mongoose";
 import { ZodError, z } from "zod";
 
 import { dbConnect } from "@/lib/mongo";
@@ -13,6 +12,7 @@ import {
   handleZodError,
   isNextResponse,
   objectIdToString,
+  rebalancePercentages,
   requireUserId,
   serializeGoal,
 } from "../../goals/utils";
@@ -47,56 +47,6 @@ const AcceptInvitePreviewResponseSchema = z.object({
 });
 
 const normaliseEmail = (email: string) => email.trim().toLowerCase();
-
-type GoalDocument = HydratedDocument<Goal>;
-
-const rebalancePercentages = (goal: GoalDocument | null) => {
-  if (!goal) {
-    return;
-  }
-
-  const goalObject = goal.toObject<Goal>();
-  const members = goalObject.members.map((member) => ({
-    userId: member.userId,
-    role: member.role,
-    splitPercent: member.splitPercent,
-    fixedAmount: member.fixedAmount ?? undefined,
-  }));
-
-  const percentMembers = members.filter((member) => member.fixedAmount == null);
-  const ownerMember = percentMembers.find((member) => member.role === "owner");
-
-  if (!ownerMember) {
-    return;
-  }
-
-  const collaboratorMembers = percentMembers.filter((member) => member.role !== "owner");
-
-  if (collaboratorMembers.length === 0) {
-    ownerMember.splitPercent = 100;
-    goal.set({ members });
-    return;
-  }
-
-  const collaboratorTotal = collaboratorMembers.reduce((sum, member) => {
-    return sum + (member.splitPercent ?? 0);
-  }, 0);
-
-  if (collaboratorTotal > 100) {
-    const scale = 100 / collaboratorTotal;
-    collaboratorMembers.forEach((member) => {
-      member.splitPercent = (member.splitPercent ?? 0) * scale;
-    });
-  }
-
-  const adjustedTotal = collaboratorMembers.reduce((sum, member) => {
-    return sum + (member.splitPercent ?? 0);
-  }, 0);
-
-  ownerMember.splitPercent = Math.max(0, 100 - adjustedTotal);
-
-  goal.set({ members });
-};
 
 export async function GET(request: NextRequest) {
   try {
