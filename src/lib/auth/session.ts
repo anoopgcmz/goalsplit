@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-import { config } from "../config";
+import { getJwtSecret } from "./jwt-secret";
 
 export const SESSION_COOKIE_NAME = "session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -30,7 +30,7 @@ export type SessionValidationResult =
   | { success: false; reason: "missing" | "invalid" | "expired" };
 
 const createSignature = (data: string) =>
-  createHmac("sha256", config.auth.jwtSecret).update(data).digest("base64url");
+  createHmac("sha256", getJwtSecret()).update(data).digest("base64url");
 
 const serializePayload = (payload: SessionPayload) =>
   Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
