@@ -254,7 +254,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Pro
       return schema.parse(data);
     } catch (error) {
       if (error instanceof ZodError) {
-        throw new ApiError(422, ERROR_MESSAGE_BY_STATUS[422], error.issues);
+        throw createApiError(422, undefined, error.issues);
       }
       throw error;
     }
