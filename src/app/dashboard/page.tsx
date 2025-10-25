@@ -9,9 +9,10 @@ import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { GoalSummary } from "@/lib/mocks/goals";
-import { mockGoalsAdapter } from "@/lib/mocks/goals";
+import type { GoalSummary } from "@/lib/api/goals";
+import { fetchGoalSummaries } from "@/lib/api/goals";
 import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
+import { isApiError } from "@/lib/api/request";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -90,7 +91,7 @@ function GoalCard(props: GoalSummary): JSX.Element {
     title,
     targetAmount,
     targetDate,
-    monthlyRequired,
+    contributionAmount,
     collaborative,
     progress,
     contributionLabel,
@@ -172,7 +173,7 @@ function GoalCard(props: GoalSummary): JSX.Element {
         <div>
           <dt className="font-medium text-slate-500">On-track pace</dt>
           <dd className="text-base font-semibold text-slate-900">
-            {currencyFormatter.format(monthlyRequired)}
+            {currencyFormatter.format(contributionAmount)}
             <span className="ml-1 text-sm font-normal text-slate-600">{contributionLabel}</span>
           </dd>
         </div>
@@ -216,7 +217,7 @@ export default function DashboardPage(): JSX.Element {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await mockGoalsAdapter.listSummaries(controller.signal);
+      const data = await fetchGoalSummaries(controller.signal);
       if (controller.signal.aborted) {
         return;
       }
@@ -225,7 +226,11 @@ export default function DashboardPage(): JSX.Element {
       if ((err as Error).name === "AbortError") {
         return;
       }
-      setError("We couldn't load your goals. Try again later.");
+      if (isApiError(err)) {
+        setError(err.message);
+      } else {
+        setError("We couldn't load your goals. Try again later.");
+      }
     } finally {
       if (!controller.signal.aborted) {
         setIsLoading(false);
@@ -242,7 +247,10 @@ export default function DashboardPage(): JSX.Element {
     };
   }, [loadGoals]);
 
-  const totalMonthlyRequired = goals.reduce((sum, goal) => sum + goal.monthlyRequired, 0);
+  const totalContributionAmount = goals.reduce(
+    (sum, goal) => sum + goal.contributionAmount,
+    0,
+  );
   const nextDeadline = getNextDeadline(goals);
   const activeGoalCount = goals.length;
 
@@ -282,7 +290,7 @@ export default function DashboardPage(): JSX.Element {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-slate-500">Total monthly required</p>
                   <p className="text-3xl font-semibold text-slate-900">
-                    {currencyFormatter.format(totalMonthlyRequired)}
+            {currencyFormatter.format(totalContributionAmount)}
                   </p>
                 </div>
                 <div className="flex flex-col gap-1">

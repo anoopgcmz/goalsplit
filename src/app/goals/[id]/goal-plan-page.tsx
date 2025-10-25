@@ -26,8 +26,9 @@ import {
 } from "@/lib/financial";
 import { useFormatters } from "@/lib/hooks/use-formatters";
 import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
-import { mockGoalsAdapter } from "@/lib/mocks/goals";
-import { mockAuthAdapter } from "@/lib/mocks/auth";
+import { fetchGoalPlan, sendGoalInvite } from "@/lib/api/goals";
+import { getCurrentUser } from "@/lib/api/auth";
+import { isApiError } from "@/lib/api/request";
 
 type ContributionFrequency = GoalPlanResponse["assumptions"]["contributionFrequency"];
 type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
@@ -1192,7 +1193,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       const parsedSplit = Number.parseFloat(inviteSplit);
       const parsedFixed = Number.parseFloat(inviteFixed);
 
-      const payload = await mockGoalsAdapter.sendInvite(
+      const payload = await sendGoalInvite(
         goalId,
         {
           email: inviteEmail,
@@ -1221,10 +1222,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       });
     } catch (error) {
       setInviteStatus("error");
-      setInviteMessage("We couldn't send that invite. Check your connection and try again.");
+      const message = isApiError(error)
+        ? error.message
+        : "We couldn't send that invite. Check your connection and try again.";
+      setInviteMessage(message);
       publish({
         title: "Invite failed",
-        description: "We couldn't send that invite. Check your connection and try again.",
+        description: message,
         variant: "error",
       });
     }
@@ -1518,7 +1522,7 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     try {
       setIsLoading(true);
       setError(null);
-      const payload = await mockGoalsAdapter.getPlan(goalId, controller.signal);
+      const payload = await fetchGoalPlan(goalId, controller.signal);
       if (controller.signal.aborted) {
         return;
       }
@@ -1529,8 +1533,13 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
       if ((err as Error).name === "AbortError") {
         return;
       }
-      const message = (err as Error).message || "We couldn't load this goal plan. Try again later.";
-      setError(message);
+      if (isApiError(err)) {
+        setError(err.message);
+      } else {
+        const message =
+          (err as Error).message || "We couldn't load this goal plan. Try again later.";
+        setError(message);
+      }
     } finally {
       if (!controller.signal.aborted) {
         setIsLoading(false);
@@ -1552,8 +1561,11 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
 
     const fetchCurrentUser = async () => {
       try {
-        const user = await mockAuthAdapter.getCurrentUser(controller.signal);
-        setCurrentUser(user);
+        const userData = await getCurrentUser(controller.signal);
+        if (controller.signal.aborted) {
+          return;
+        }
+        setCurrentUser(userData);
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           return;

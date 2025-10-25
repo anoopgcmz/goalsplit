@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ToastProvider } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/lib/hooks/use-current-user";
 
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -22,7 +23,9 @@ interface AppShellProps {
 export function AppShell(props: AppShellProps): JSX.Element {
   const { children } = props;
   const pathname = usePathname();
+  const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
+  const { user, status, isLoading } = useCurrentUser();
 
   useEffect(() => {
     setNavOpen(false);
@@ -42,6 +45,37 @@ export function AppShell(props: AppShellProps): JSX.Element {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [navOpen]);
+
+  const userInitials = useMemo(() => {
+    if (user?.name) {
+      const segments = user.name
+        .split(" ")
+        .map((segment) => segment.trim())
+        .filter((segment) => segment.length > 0);
+      if (segments.length >= 2) {
+        return `${segments[0][0] ?? ""}${segments[segments.length - 1][0] ?? ""}`
+          .toUpperCase()
+          .slice(0, 2);
+      }
+      if (segments.length === 1 && segments[0].length > 0) {
+        return segments[0][0]?.toUpperCase() ?? "GP";
+      }
+    }
+
+    if (user?.email) {
+      return user.email[0]?.toUpperCase() ?? "GP";
+    }
+
+    return "GP";
+  }, [user]);
+
+  const handleLogin = () => {
+    router.push("/login");
+  };
+
+  const handleLogout = () => {
+    router.push("/logout");
+  };
 
   return (
     <ToastProvider>
@@ -77,15 +111,31 @@ export function AppShell(props: AppShellProps): JSX.Element {
             </Link>
           </div>
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost">
-              Log in
-            </Button>
-            <span
-              aria-hidden="true"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700"
-            >
-              GP
-            </span>
+            {status === "authenticated" && user ? (
+              <>
+                <Button type="button" variant="ghost" onClick={handleLogout}>
+                  Log out
+                </Button>
+                <span
+                  aria-label={user.name ?? user.email ?? "Account"}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700"
+                >
+                  {userInitials}
+                </span>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="ghost" onClick={handleLogin} disabled={isLoading}>
+                  {isLoading ? "Checking…" : "Log in"}
+                </Button>
+                <span
+                  aria-hidden="true"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700"
+                >
+                  GP
+                </span>
+              </>
+            )}
           </div>
         </div>
       </header>

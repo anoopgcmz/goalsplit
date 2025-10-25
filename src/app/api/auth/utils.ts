@@ -7,6 +7,10 @@ import { createHash } from "crypto";
 import { ApiErrorResponseSchema, type BackoffHint, type Locale } from "../common/schemas";
 import { logStructuredError } from "../common/logger";
 import type { AuthApiErrorCode } from "./schemas";
+import {
+  SESSION_COOKIE_NAME,
+  validateSessionToken,
+} from "@/lib/auth/session";
 
 export const normaliseEmail = (email: string) => email.trim().toLowerCase();
 
@@ -74,21 +78,40 @@ export const handleAuthZodError = (error: unknown) => {
 export const requireSessionUserId = (
   request: NextRequest,
 ): Types.ObjectId | NextResponse => {
-  const identifier = request.cookies.get("session")?.value;
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const result = validateSessionToken(token);
 
-  if (!identifier) {
+  if (!result.success) {
+    const baseOptions = {
+      hint: "Request a new sign-in code to continue.",
+      logLevel: result.reason === "invalid" ? "warn" : "info",
+      context: { reason: result.reason },
+    } as const;
+
+    if (result.reason === "expired") {
+      return createAuthErrorResponse(
+        "AUTH_UNAUTHORIZED",
+        "Your session has expired. Please sign in again to keep going.",
+        401,
+        {
+          ...baseOptions,
+          hint: "Request a fresh sign-in code to continue.",
+          logLevel: "info",
+        },
+      );
+    }
+
     return createAuthErrorResponse(
       "AUTH_UNAUTHORIZED",
       "We could not find your session. Please sign in to continue.",
       401,
-      {
-        hint: "Request a new sign-in code to continue.",
-        logLevel: "info",
-      },
+      baseOptions,
     );
   }
 
-  if (!Types.ObjectId.isValid(identifier)) {
+  const { userId } = result.session;
+
+  if (!Types.ObjectId.isValid(userId)) {
     return createAuthErrorResponse(
       "AUTH_UNAUTHORIZED",
       "Your session looks unusual. Please sign in again to keep things secure.",
@@ -96,9 +119,10 @@ export const requireSessionUserId = (
       {
         hint: "Sign in again to refresh your session.",
         logLevel: "warn",
+        context: { reason: "invalid-object-id" },
       },
     );
   }
 
-  return new Types.ObjectId(identifier);
+  return new Types.ObjectId(result.session.userId);
 };

@@ -15,6 +15,10 @@ import {
 } from "./schemas";
 import { ApiErrorResponseSchema, type BackoffHint, type Locale } from "../common/schemas";
 import { logStructuredError } from "../common/logger";
+import {
+  SESSION_COOKIE_NAME,
+  validateSessionToken,
+} from "@/lib/auth/session";
 
 interface ErrorOptions {
   hint?: string;
@@ -129,20 +133,46 @@ export const handleZodError = (error: unknown) => {
 
 export const requireUserId = (request: NextRequest): Types.ObjectId | NextResponse => {
   const headerValue = request.headers.get("x-user-id");
-  const cookieValue = request.cookies.get("session")?.value;
-  const identifier = headerValue ?? cookieValue;
+  if (headerValue) {
+    if (!Types.ObjectId.isValid(headerValue)) {
+      return createErrorResponse(
+        "CONTRIBUTION_UNAUTHORIZED",
+        "Your session looks unusual. Please sign in once more to keep things secure.",
+        401,
+        {
+          hint: "Sign out and back in to refresh your session.",
+          logLevel: "warn",
+          context: { source: "header" },
+        },
+      );
+    }
 
-  if (!identifier) {
+    return new Types.ObjectId(headerValue);
+  }
+
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const validation = validateSessionToken(token);
+
+  if (!validation.success) {
+    const reason = validation.reason;
+    const isExpired = reason === "expired";
     return createErrorResponse(
       "CONTRIBUTION_UNAUTHORIZED",
-      "We could not find your session. Please sign in to continue.",
+      isExpired
+        ? "Your session has expired. Please sign in again to keep contributing."
+        : "We could not find your session. Please sign in to continue.",
       401,
       {
-        hint: "Sign in again so we can save your latest updates.",
-        logLevel: "info",
+        hint: isExpired
+          ? "Request a new sign-in code to continue."
+          : "Sign in again so we can save your latest updates.",
+        logLevel: reason === "invalid" ? "warn" : "info",
+        context: { reason },
       },
     );
   }
+
+  const identifier = validation.session.userId;
 
   if (!Types.ObjectId.isValid(identifier)) {
     return createErrorResponse(
@@ -152,6 +182,7 @@ export const requireUserId = (request: NextRequest): Types.ObjectId | NextRespon
       {
         hint: "Sign out and back in to refresh your session.",
         logLevel: "warn",
+        context: { reason: "invalid-object-id" },
       },
     );
   }
