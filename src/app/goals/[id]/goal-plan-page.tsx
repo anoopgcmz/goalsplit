@@ -1490,9 +1490,6 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
     setIsRemovingMember(true);
 
-    const removedMember =
-      rowsRef.current.find((row) => row.userId === pendingRemovalUserId) ?? null;
-
     try {
       await removeGoalMember(goalId, pendingRemovalUserId);
 
@@ -1503,17 +1500,9 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         return next;
       });
 
-      let displayName = removedMember?.email ?? "This collaborator";
-      if (typeof removedMember?.name === "string") {
-        const normalizedName = removedMember.name.trim();
-        if (normalizedName.length > 0) {
-          displayName = normalizedName;
-        }
-      }
-
       publish({
-        title: "Removed",
-        description: `${displayName} no longer has access to this goal.`,
+        title: "Collaborator removed",
+        description: "Collaborator removed and access revoked.",
         variant: "success",
       });
 
@@ -2136,12 +2125,12 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           tone="danger"
           isConfirming={isRemovingMember}
           title="Remove collaborator?"
-          description="They’ll immediately lose access to this shared goal."
+          description="We’ll contact the server to revoke their access."
         >
           {pendingRemovalRow ? (
             <p>
               Are you sure you want to remove <span className="font-semibold">{removalDisplayName}</span>?
-              They won’t be able to view or contribute to this goal anymore.
+              If the server confirms the removal, they won’t be able to view or contribute to this goal anymore.
             </p>
           ) : null}
         </ConfirmDialog>
