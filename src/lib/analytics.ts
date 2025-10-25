@@ -139,6 +139,7 @@ class AnalyticsService {
           headers: { "Content-Type": "application/json" },
           body: payload,
           keepalive: true,
+          credentials: "include",
         }).catch(() => {
           // Drop failures on unload to avoid blocking navigation.
         });
@@ -169,6 +170,7 @@ class AnalyticsService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ events }),
         keepalive: true,
+        credentials: "include",
       });
 
       if (!response.ok) {
