@@ -20,6 +20,11 @@ export function Dialog(props: DialogProps): JSX.Element | null {
   const { open, onClose, title, description, children, footer } = props;
   const dialogRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedElement = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -33,7 +38,7 @@ export function Dialog(props: DialogProps): JSX.Element | null {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
 
       if (event.key !== "Tab") {
@@ -71,7 +76,7 @@ export function Dialog(props: DialogProps): JSX.Element | null {
       const previous = previouslyFocusedElement.current as HTMLElement | null;
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") {
     return null;
@@ -83,7 +88,7 @@ export function Dialog(props: DialogProps): JSX.Element | null {
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
-          onClose();
+          onCloseRef.current();
         }
       }}
     >

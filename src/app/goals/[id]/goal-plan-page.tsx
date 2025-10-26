@@ -705,15 +705,14 @@ const mapInviteIssues = (issues: ReturnType<typeof normalizeZodIssues>) => {
   const generalMessages: string[] = [];
 
   issues.forEach((issue) => {
-    const field = issue.path[0];
+    const pathLength = issue.path.length;
+    const field = pathLength > 0 ? issue.path[pathLength - 1] : undefined;
     if (field === "email" || field === "defaultSplitPercent" || field === "fixedAmount") {
       errors[field] = errors[field] ?? issue.message;
       return;
     }
 
-    if (issue.path.length === 0) {
-      generalMessages.push(issue.message);
-    }
+    generalMessages.push(issue.message);
   });
 
   return { errors, generalMessages };
