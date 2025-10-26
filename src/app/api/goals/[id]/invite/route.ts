@@ -7,6 +7,7 @@ import { ZodError } from "zod";
 import { dbConnect } from "@/lib/mongo";
 import GoalModel from "@/models/goal";
 import InviteModel from "@/models/invite";
+import UserModel from "@/models/user";
 
 import { CreateGoalInviteInputSchema } from "../../schemas";
 import {
@@ -49,14 +50,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + parsedBody.expiresInMinutes * 60_000);
 
+    const inviter = await UserModel.findById(userId);
+
     await InviteModel.deleteOne({ goalId, email: parsedBody.email });
 
     await InviteModel.create({
       goalId,
+      goalTitle: goal.title,
       email: parsedBody.email,
       token,
       expiresAt,
       createdBy: userId,
+      inviterName: inviter?.name ?? null,
+      inviterEmail: inviter?.email,
+      message: parsedBody.message ?? null,
       defaultSplitPercent: parsedBody.defaultSplitPercent,
       fixedAmount: parsedBody.fixedAmount,
     });

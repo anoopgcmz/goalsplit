@@ -271,6 +271,12 @@ export const CreateGoalInviteInputSchema = z
       .min(1, "Enter the collaborator's email address.")
       .email("Enter a valid email address.")
       .transform((value) => value.toLowerCase()),
+    message: z
+      .string({ invalid_type_error: "Use letters, numbers, and punctuation in your message." })
+      .trim()
+      .max(500, "Keep the invitation message under 500 characters.")
+      .optional()
+      .transform((value) => (value && value.length > 0 ? value : undefined)),
     expiresInMinutes: z
       .coerce
       .number({ invalid_type_error: "Set how long the invite should stay active." })
