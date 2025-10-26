@@ -242,7 +242,7 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Pro
   if (typeof window === "undefined" && !finalHeaders.has("cookie")) {
     try {
       const { cookies: getCookies } = await import("next/headers");
-      const cookieStore: unknown = getCookies();
+      const cookieStore: unknown = await getCookies();
 
       if (isCookieStore(cookieStore)) {
         const cookies = cookieStore.getAll();
