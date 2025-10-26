@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ToastProvider } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
+import { InvitationBell } from "@/features/invitations/invitation-bell";
 
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -132,6 +133,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
             <div className="flex items-center gap-3">
               {status === "authenticated" && user ? (
                 <>
+                  <InvitationBell />
                   <Button type="button" variant="ghost" onClick={handleLogout}>
                     Log out
                   </Button>

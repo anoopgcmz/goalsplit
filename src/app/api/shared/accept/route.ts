@@ -34,6 +34,8 @@ const AcceptInviteResponseSchema = z.object({
   goal: GoalResponseSchema,
 });
 
+const InvitationStatusSchema = z.enum(["pending", "accepted", "declined", "expired"]);
+
 const AcceptInvitePreviewResponseSchema = z.object({
   invite: z.object({
     goalId: z.string(),
@@ -41,6 +43,8 @@ const AcceptInvitePreviewResponseSchema = z.object({
     inviterName: z.string().nullable(),
     inviterEmail: z.string().email().nullable(),
     inviteeEmail: z.string().email(),
+    message: z.string().nullable(),
+    status: InvitationStatusSchema,
     defaultSplitPercent: z.number().min(0).max(100).nullable(),
     fixedAmount: z.number().min(0).nullable(),
     currency: z.string(),
@@ -80,7 +84,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (invite.acceptedAt) {
+    if (invite.status === "pending" && invite.expiresAt.getTime() <= Date.now()) {
+      invite.status = "expired";
+      invite.respondedAt = invite.respondedAt ?? new Date();
+      await invite.save();
+    }
+
+    if (invite.status === "accepted") {
       return createErrorResponse(
         "GOAL_CONFLICT",
         "This invitation was already accepted.",
@@ -93,7 +103,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (invite.expiresAt.getTime() <= Date.now()) {
+    if (invite.status === "declined") {
+      return createErrorResponse("GOAL_CONFLICT", "This invitation was declined.", 409, {
+        hint: "Request a new invite from the goal owner if you'd like to join.",
+        logLevel: "info",
+        context: { inviteId: invite._id.toString(), operation: "preview-invite" },
+      });
+    }
+
+    if (invite.status === "expired") {
       return createErrorResponse("GOAL_CONFLICT", "This invitation has expired.", 409, {
         hint: "Ask the goal owner to send a fresh invitation.",
         logLevel: "info",
@@ -157,6 +175,8 @@ export async function GET(request: NextRequest) {
         inviterName: inviter?.name ?? null,
         inviterEmail: inviter?.email ?? null,
         inviteeEmail: invite.email,
+        message: invite.message ?? null,
+        status: invite.status,
         defaultSplitPercent:
           invite.defaultSplitPercent == null ? null : Number(invite.defaultSplitPercent),
         fixedAmount: invite.fixedAmount == null ? null : Number(invite.fixedAmount),
@@ -211,7 +231,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (invite.acceptedAt) {
+    if (invite.status === "pending" && invite.expiresAt.getTime() <= Date.now()) {
+      invite.status = "expired";
+      invite.respondedAt = invite.respondedAt ?? new Date();
+      await invite.save();
+    }
+
+    if (invite.status === "accepted") {
       return createErrorResponse(
         "GOAL_CONFLICT",
         "This invitation was already accepted.",
@@ -224,7 +250,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (invite.expiresAt.getTime() <= Date.now()) {
+    if (invite.status === "declined") {
+      return createErrorResponse("GOAL_CONFLICT", "This invitation was declined.", 409, {
+        hint: "Ask the goal owner to send a new invitation if you'd still like to collaborate.",
+        logLevel: "info",
+        context: { inviteId: invite._id.toString(), operation: "accept-invite" },
+      });
+    }
+
+    if (invite.status === "expired") {
       return createErrorResponse("GOAL_CONFLICT", "This invitation has expired.", 409, {
         hint: "Ask the goal owner to send a fresh invitation.",
         logLevel: "info",
@@ -309,7 +343,10 @@ export async function POST(request: NextRequest) {
 
     rebalancePercentages(goal);
 
-    invite.acceptedAt = new Date();
+    const now = new Date();
+    invite.acceptedAt = now;
+    invite.status = "accepted";
+    invite.respondedAt = now;
 
     const [updatedGoal] = await Promise.all([goal.save(), invite.save()]);
 

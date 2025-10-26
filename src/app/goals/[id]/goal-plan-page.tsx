@@ -576,6 +576,7 @@ interface InviteFieldErrors {
   email?: string;
   defaultSplitPercent?: string;
   fixedAmount?: string;
+  message?: string;
 }
 
 interface ComputedMemberRow extends MemberRowState {
@@ -707,7 +708,12 @@ const mapInviteIssues = (issues: ReturnType<typeof normalizeZodIssues>) => {
   issues.forEach((issue) => {
     const pathLength = issue.path.length;
     const field = pathLength > 0 ? issue.path[pathLength - 1] : undefined;
-    if (field === "email" || field === "defaultSplitPercent" || field === "fixedAmount") {
+    if (
+      field === "email" ||
+      field === "defaultSplitPercent" ||
+      field === "fixedAmount" ||
+      field === "message"
+    ) {
       errors[field] = errors[field] ?? issue.message;
       return;
     }
@@ -816,6 +822,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const inviteStatusId = `${baseId}-invite-status`;
   const inviteHelperId = `${baseId}-invite-helper`;
   const inviteModeHelperId = `${baseId}-invite-mode-helper`;
+  const inviteMessageHelperId = `${baseId}-invite-message-helper`;
 
   const composeAriaDescribedBy = (...ids: (string | undefined)[]) => {
     const value = ids.filter(Boolean).join(" ");
@@ -1277,6 +1284,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSplit, setInviteSplit] = useState("50.0");
   const [inviteFixed, setInviteFixed] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
   const [inviteMode, setInviteMode] = useState<"percent" | "fixed">("percent");
   const [inviteStatus, setInviteStatus] = useState<"idle" | "submitting" | "success" | "error">(
     "idle",
@@ -1286,6 +1294,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const inviteEmailRef = useRef<HTMLInputElement | null>(null);
   const inviteSplitRef = useRef<HTMLInputElement | null>(null);
   const inviteFixedRef = useRef<HTMLInputElement | null>(null);
+  const inviteMessageRef = useRef<HTMLTextAreaElement | null>(null);
 
   const getInviteDefaultSplit = () => {
     const remainingPercent = Math.max(0, 100 - computation.percentSum);
@@ -1350,6 +1359,16 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     requestAnimationFrame(() => {
       inviteEmailRef.current?.focus({ preventScroll: true });
       inviteEmailRef.current?.select?.();
+    });
+  };
+
+  const focusInviteMessageField = () => {
+    if (!isInviteOpen) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      inviteMessageRef.current?.focus({ preventScroll: true });
     });
   };
 
@@ -1430,6 +1449,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
     const trimmedSplit = inviteSplit.trim();
     const trimmedFixed = inviteFixed.trim();
+    const trimmedMessage = inviteNote.trim();
 
     if (inviteMode === "percent" && trimmedSplit.length === 0) {
       setInviteStatus("error");
@@ -1451,6 +1471,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         defaultSplitPercent:
           inviteMode === "percent" && trimmedSplit.length > 0 ? trimmedSplit : undefined,
         fixedAmount: inviteMode === "fixed" && trimmedFixed.length > 0 ? trimmedFixed : null,
+        message: trimmedMessage.length > 0 ? trimmedMessage : undefined,
       };
 
       const validation = CreateGoalInviteInputSchema.safeParse(candidate);
@@ -1476,6 +1497,8 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           inviteMode === "percent" ? errors.defaultSplitPercent : errors.fixedAmount;
         if (errors.email) {
           focusInviteEmailField();
+        } else if (errors.message) {
+          focusInviteMessageField();
         } else if (activeContributionError) {
           focusActiveInviteField();
         } else if (hasFieldErrors) {
@@ -1491,10 +1514,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
       const payload = await sendGoalInvite(goalId, parsedInput);
 
+      const inviteeDisplay = parsedInput.email;
       const successMessage =
         payload?.inviteUrl != null
-          ? `✅ Invitation sent successfully.\nShare this link if needed:\n${payload.inviteUrl}`
-          : "✅ Invitation sent successfully.";
+          ? `✅ Invitation sent to ${inviteeDisplay}. They'll be notified inside the app.\nShare this link if needed:\n${payload.inviteUrl}`
+          : `✅ Invitation sent to ${inviteeDisplay}. They'll be notified inside the app.`;
 
       setInviteStatus("success");
       setInviteMessage(successMessage);
@@ -1502,12 +1526,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       setInviteEmail("");
       setInviteSplit(getInviteDefaultSplit());
       setInviteFixed("");
+      setInviteNote("");
       publish({
-        title: "Invitation ready",
+        title: "Invitation sent",
         description:
           payload?.inviteUrl != null
-            ? "Share the invite link with your collaborator."
-            : "We emailed your collaborator a link to join.",
+            ? `We let ${inviteeDisplay} know inside the app. Share the link if needed.`
+            : `We let ${inviteeDisplay} know inside the app.`,
         variant: "success",
       });
       focusInviteEmailField();
@@ -1525,7 +1550,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
             );
             const activeContributionError =
               inviteMode === "percent" ? errors.defaultSplitPercent : errors.fixedAmount;
-            if (activeContributionError) {
+            if (errors.email) {
+              focusInviteEmailField();
+            } else if (errors.message) {
+              focusInviteMessageField();
+            } else if (activeContributionError) {
               focusActiveInviteField();
             } else {
               focusInviteEmailField();
@@ -1584,9 +1613,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const isFixedMode = inviteMode === "fixed";
   const inviteSplitError = isPercentMode ? inviteErrors.defaultSplitPercent : undefined;
   const inviteFixedError = isFixedMode ? inviteErrors.fixedAmount : undefined;
+  const inviteMessageError = inviteErrors.message;
   const inviteEmailErrorId = inviteEmailError ? `${baseId}-invite-email-error` : undefined;
   const inviteSplitErrorId = inviteSplitError ? `${baseId}-invite-split-error` : undefined;
   const inviteFixedErrorId = inviteFixedError ? `${baseId}-invite-fixed-error` : undefined;
+  const inviteMessageErrorId = inviteMessageError ? `${baseId}-invite-message-error` : undefined;
   const sectionDescription = canManageMembers
     ? "Adjust how contributions are split between collaborators."
     : "See how contributions are split between collaborators.";
@@ -1991,6 +2022,48 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   </p>
                 ) : null}
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${baseId}-invite-message`}>Personal message</Label>
+              <textarea
+                id={`${baseId}-invite-message`}
+                ref={inviteMessageRef}
+                value={inviteNote}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setInviteNote(nextValue);
+                  if (inviteErrors.message) {
+                    setInviteErrors((prev) => {
+                      if (!prev.message) {
+                        return prev;
+                      }
+                      const next = { ...prev };
+                      delete next.message;
+                      return next;
+                    });
+                  }
+                }}
+                maxLength={500}
+                rows={4}
+                aria-describedby={composeAriaDescribedBy(
+                  inviteMessageHelperId,
+                  inviteMessageErrorId,
+                )}
+                aria-invalid={inviteMessageError ? "true" : undefined}
+                className={cn(
+                  "min-h-[96px] w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  inviteMessageError && "border-rose-400 focus-visible:ring-rose-500",
+                )}
+                placeholder="Share context or expectations (optional)"
+              />
+              {inviteMessageError ? (
+                <p id={inviteMessageErrorId} className="text-xs text-rose-600">
+                  {inviteMessageError}
+                </p>
+              ) : null}
+              <p id={inviteMessageHelperId} className="text-xs text-slate-500">
+                Add a short note so they know why you’re inviting them. Optional.
+              </p>
             </div>
             <p
               id={inviteStatusId}
