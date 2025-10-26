@@ -40,7 +40,6 @@ const inviteSchema = new Schema<Invite>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     createdBy: {
       type: Schema.Types.ObjectId,

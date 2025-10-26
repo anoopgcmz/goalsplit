@@ -31,7 +31,6 @@ const otpCodeSchema = new Schema<OtpCode>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     consumed: {
       type: Boolean,
