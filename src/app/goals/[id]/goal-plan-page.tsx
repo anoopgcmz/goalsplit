@@ -39,6 +39,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/request";
 import { ApiError as HttpApiError } from "@/lib/http";
 import { normalizeZodIssues } from "@/lib/validation/zod";
+import { cn } from "@/lib/utils";
 
 type ContributionFrequency = GoalPlanResponse["assumptions"]["contributionFrequency"];
 type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
@@ -815,6 +816,12 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const titleId = `${baseId}-title`;
   const inviteStatusId = `${baseId}-invite-status`;
   const inviteHelperId = `${baseId}-invite-helper`;
+  const inviteModeHelperId = `${baseId}-invite-mode-helper`;
+
+  const composeAriaDescribedBy = (...ids: (string | undefined)[]) => {
+    const value = ids.filter(Boolean).join(" ");
+    return value.length > 0 ? value : undefined;
+  };
 
   useEffect(() => {
     const nextRows = initializeMemberRows(members);
@@ -1022,10 +1029,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     Math.abs(computation.percentSum - 100) > PERCENT_TOLERANCE;
   const overflowWarningActive = computation.hasOverflow && computation.isTotalFinite;
 
-  const tableDescribedBy = [sectionDescriptionId]
-    .concat(percentWarningActive ? [percentWarningId] : [])
-    .concat(overflowWarningActive ? [overflowWarningId] : [])
-    .join(" ") || undefined;
+  const tableDescribedBy = composeAriaDescribedBy(
+    sectionDescriptionId,
+    percentWarningActive ? percentWarningId : undefined,
+    overflowWarningActive ? overflowWarningId : undefined,
+  );
 
   const handleCellKeyDown = (
     event: KeyboardEvent<HTMLInputElement>,
@@ -1270,17 +1278,27 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSplit, setInviteSplit] = useState("50.0");
   const [inviteFixed, setInviteFixed] = useState("");
+  const [inviteMode, setInviteMode] = useState<"percent" | "fixed">("percent");
   const [inviteStatus, setInviteStatus] = useState<"idle" | "submitting" | "success" | "error">(
     "idle",
   );
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
   const [inviteErrors, setInviteErrors] = useState<InviteFieldErrors>({});
+  const inviteEmailRef = useRef<HTMLInputElement | null>(null);
+  const inviteSplitRef = useRef<HTMLInputElement | null>(null);
+  const inviteFixedRef = useRef<HTMLInputElement | null>(null);
 
-  const openInvite = () => {
+  const getInviteDefaultSplit = () => {
     const remainingPercent = Math.max(0, 100 - computation.percentSum);
     const defaultSplit =
       computation.percentEligibleCount > 0 && remainingPercent > 0 ? remainingPercent : 50;
-    setInviteSplit(clamp(defaultSplit, 0, 100).toFixed(1));
+    return clamp(defaultSplit, 0, 100).toFixed(1);
+  };
+
+  const openInvite = () => {
+    setInviteSplit(getInviteDefaultSplit());
+    setInviteFixed("");
+    setInviteMode("percent");
     setInviteErrors({});
     setInviteStatus("idle");
     setInviteMessage(null);
@@ -1291,9 +1309,113 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     setIsInviteOpen(false);
     setInviteEmail("");
     setInviteFixed("");
+    setInviteSplit(getInviteDefaultSplit());
+    setInviteMode("percent");
     setInviteStatus("idle");
     setInviteMessage(null);
     setInviteErrors({});
+  };
+
+  useEffect(() => {
+    if (!isInviteOpen) {
+      return;
+    }
+
+    const id = requestAnimationFrame(() => {
+      inviteEmailRef.current?.focus({ preventScroll: true });
+      inviteEmailRef.current?.select?.();
+    });
+
+    return () => cancelAnimationFrame(id);
+  }, [isInviteOpen]);
+
+  const focusActiveInviteField = () => {
+    if (!isInviteOpen) {
+      return;
+    }
+
+    const target = inviteMode === "percent" ? inviteSplitRef.current : inviteFixedRef.current;
+    if (target && !target.disabled) {
+      requestAnimationFrame(() => {
+        target.focus({ preventScroll: true });
+        target.select?.();
+      });
+    }
+  };
+
+  const focusInviteEmailField = () => {
+    if (!isInviteOpen) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      inviteEmailRef.current?.focus({ preventScroll: true });
+      inviteEmailRef.current?.select?.();
+    });
+  };
+
+  const handleInviteModeChange = (mode: "percent" | "fixed") => {
+    if (mode === inviteMode) {
+      requestAnimationFrame(() => {
+        if (mode === "percent") {
+          inviteSplitRef.current?.focus({ preventScroll: true });
+          inviteSplitRef.current?.select?.();
+        } else {
+          inviteFixedRef.current?.focus({ preventScroll: true });
+          inviteFixedRef.current?.select?.();
+        }
+      });
+      return;
+    }
+
+    setInviteMode(mode);
+    setInviteStatus((prev) => (prev === "error" ? "idle" : prev));
+    setInviteMessage((prev) => (prev?.startsWith("✅") ? prev : null));
+    setInviteErrors((prev) => {
+      if (!prev.defaultSplitPercent && !prev.fixedAmount) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next.defaultSplitPercent;
+      delete next.fixedAmount;
+      return next;
+    });
+
+    if (mode === "percent") {
+      setInviteSplit((current) => (current.trim().length > 0 ? current : getInviteDefaultSplit()));
+      setInviteFixed("");
+    } else {
+      setInviteFixed((current) => current.trim().length > 0 ? current : "");
+      setInviteSplit("");
+    }
+
+    requestAnimationFrame(() => {
+      const target = mode === "percent" ? inviteSplitRef.current : inviteFixedRef.current;
+      target?.focus({ preventScroll: true });
+      target?.select?.();
+    });
+  };
+
+  const handleInviteModeKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    mode: "percent" | "fixed",
+  ) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      handleInviteModeChange("percent");
+      return;
+    }
+
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      handleInviteModeChange("fixed");
+      return;
+    }
+
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      handleInviteModeChange(mode);
+    }
   };
 
   const handleInviteSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1305,12 +1427,31 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     setInviteStatus("submitting");
     setInviteMessage(null);
     setInviteErrors({});
+    focusInviteEmailField();
+
+    const trimmedSplit = inviteSplit.trim();
+    const trimmedFixed = inviteFixed.trim();
+
+    if (inviteMode === "percent" && trimmedSplit.length === 0) {
+      setInviteStatus("error");
+      setInviteErrors({ defaultSplitPercent: "Enter a default percentage to continue." });
+      focusActiveInviteField();
+      return;
+    }
+
+    if (inviteMode === "fixed" && trimmedFixed.length === 0) {
+      setInviteStatus("error");
+      setInviteErrors({ fixedAmount: "Enter a fixed amount to continue." });
+      focusActiveInviteField();
+      return;
+    }
 
     try {
       const candidate = {
         email: inviteEmail,
-        defaultSplitPercent: inviteSplit.trim().length > 0 ? inviteSplit : undefined,
-        fixedAmount: inviteFixed.trim().length > 0 ? inviteFixed : null,
+        defaultSplitPercent:
+          inviteMode === "percent" && trimmedSplit.length > 0 ? trimmedSplit : undefined,
+        fixedAmount: inviteMode === "fixed" && trimmedFixed.length > 0 ? trimmedFixed : null,
       };
 
       const validation = CreateGoalInviteInputSchema.safeParse(candidate);
@@ -1319,7 +1460,8 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         const normalized = normalizeZodIssues(validation.error.issues);
         const { errors, generalMessages } = mapInviteIssues(normalized);
 
-        if (Object.keys(errors).length > 0) {
+        const hasFieldErrors = Object.keys(errors).length > 0;
+        if (hasFieldErrors) {
           setInviteErrors(errors);
         }
 
@@ -1331,6 +1473,17 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
         setInviteStatus("error");
         setInviteMessage(message);
+        const activeContributionError =
+          inviteMode === "percent" ? errors.defaultSplitPercent : errors.fixedAmount;
+        if (errors.email) {
+          focusInviteEmailField();
+        } else if (activeContributionError) {
+          focusActiveInviteField();
+        } else if (hasFieldErrors) {
+          focusInviteEmailField();
+        } else {
+          focusInviteEmailField();
+        }
         return;
       }
 
@@ -1341,12 +1494,15 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
       const successMessage =
         payload?.inviteUrl != null
-          ? `Invitation ready. Share this link if needed:\n${payload.inviteUrl}`
-          : "Invitation sent. We'll email the collaborator shortly.";
+          ? `✅ Invitation sent successfully.\nShare this link if needed:\n${payload.inviteUrl}`
+          : "✅ Invitation sent successfully.";
 
       setInviteStatus("success");
       setInviteMessage(successMessage);
       setInviteErrors({});
+      setInviteEmail("");
+      setInviteSplit(getInviteDefaultSplit());
+      setInviteFixed("");
       publish({
         title: "Invitation ready",
         description:
@@ -1355,6 +1511,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
             : "We emailed your collaborator a link to join.",
         variant: "success",
       });
+      focusInviteEmailField();
     } catch (error) {
       if (error instanceof HttpApiError) {
         if (error.status === 422) {
@@ -1367,6 +1524,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
             setInviteMessage(
               generalMessages[0] ?? "Please fix the highlighted fields before sending.",
             );
+            const activeContributionError =
+              inviteMode === "percent" ? errors.defaultSplitPercent : errors.fixedAmount;
+            if (activeContributionError) {
+              focusActiveInviteField();
+            } else {
+              focusInviteEmailField();
+            }
             return;
           }
 
@@ -1378,6 +1542,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
               description: generalMessages[0],
               variant: "error",
             });
+            focusInviteEmailField();
             return;
           }
         }
@@ -1389,6 +1554,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
           description: error.message,
           variant: "error",
         });
+        focusInviteEmailField();
         return;
       }
 
@@ -1402,6 +1568,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
         description: message,
         variant: "error",
       });
+      focusInviteEmailField();
     }
   };
 
@@ -1414,8 +1581,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
     ? pendingRemovalRow.name
     : pendingRemovalRow?.email ?? "this collaborator";
   const inviteEmailError = inviteErrors.email;
-  const inviteSplitError = inviteErrors.defaultSplitPercent;
-  const inviteFixedError = inviteErrors.fixedAmount;
+  const isPercentMode = inviteMode === "percent";
+  const isFixedMode = inviteMode === "fixed";
+  const inviteSplitError = isPercentMode ? inviteErrors.defaultSplitPercent : undefined;
+  const inviteFixedError = isFixedMode ? inviteErrors.fixedAmount : undefined;
   const inviteEmailErrorId = inviteEmailError ? `${baseId}-invite-email-error` : undefined;
   const inviteSplitErrorId = inviteSplitError ? `${baseId}-invite-split-error` : undefined;
   const inviteFixedErrorId = inviteFixedError ? `${baseId}-invite-fixed-error` : undefined;
@@ -1675,6 +1844,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
               <Input
                 id={`${baseId}-invite-email`}
                 type="email"
+                ref={inviteEmailRef}
                 value={inviteEmail}
                 onChange={(event) => {
                   const nextValue = event.target.value;
@@ -1691,9 +1861,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   }
                 }}
                 required
-                aria-describedby={[inviteHelperId, inviteStatusId, inviteEmailErrorId]
-                  .filter(Boolean)
-                  .join(" ") || undefined}
+                aria-describedby={composeAriaDescribedBy(
+                  inviteHelperId,
+                  inviteStatusId,
+                  inviteEmailErrorId,
+                )}
                 aria-invalid={inviteEmailError ? "true" : undefined}
                 className={inviteEmailError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
               />
@@ -1702,16 +1874,59 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   {inviteEmailError}
                 </p>
               ) : null}
-              <p id={inviteHelperId} className="text-xs text-slate-500">
-                We’ll email an invite link.
-              </p>
+                <p id={inviteHelperId} className="text-xs text-slate-500">
+                  We’ll email an invite link.
+                </p>
             </div>
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-semibold text-slate-900">Contribution type</legend>
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-describedby={inviteModeHelperId}
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={isPercentMode}
+                  onClick={() => handleInviteModeChange("percent")}
+                  onKeyDown={(event) => handleInviteModeKeyDown(event, "percent")}
+                  className={cn(
+                    "w-full rounded-2xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    isPercentMode
+                      ? "border-primary-200 bg-primary-50 text-primary-700 shadow-sm"
+                      : "border-slate-200 bg-white text-slate-500 hover:text-slate-900",
+                  )}
+                >
+                  Percentage
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={isFixedMode}
+                  onClick={() => handleInviteModeChange("fixed")}
+                  onKeyDown={(event) => handleInviteModeKeyDown(event, "fixed")}
+                  className={cn(
+                    "w-full rounded-2xl border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    isFixedMode
+                      ? "border-primary-200 bg-primary-50 text-primary-700 shadow-sm"
+                      : "border-slate-200 bg-white text-slate-500 hover:text-slate-900",
+                  )}
+                >
+                  Fixed amount
+                </button>
+              </div>
+              <p id={inviteModeHelperId} className="text-xs text-slate-500">
+                Enter either a percentage or a fixed amount, not both.
+              </p>
+            </fieldset>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor={`${baseId}-invite-split`}>Default split %</Label>
                 <Input
                   id={`${baseId}-invite-split`}
                   inputMode="decimal"
+                  ref={inviteSplitRef}
                   value={inviteSplit}
                   onChange={(event) => {
                     const nextValue = event.target.value;
@@ -1727,9 +1942,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                       });
                     }
                   }}
-                  aria-describedby={inviteSplitErrorId ?? undefined}
-                  aria-invalid={inviteSplitError ? "true" : undefined}
-                  className={inviteSplitError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
+                  disabled={!isPercentMode}
+                  aria-describedby={composeAriaDescribedBy(inviteModeHelperId, inviteSplitErrorId)}
+                  aria-invalid={isPercentMode && inviteSplitError ? "true" : undefined}
+                  className={cn(
+                    !isPercentMode && "border-slate-200 text-slate-400",
+                    inviteSplitError && "border-rose-400 focus-visible:ring-rose-500",
+                  )}
                 />
                 {inviteSplitError ? (
                   <p id={inviteSplitErrorId} className="text-xs text-rose-600">
@@ -1738,10 +1957,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`${baseId}-invite-fixed`}>Fixed amount (optional)</Label>
+                <Label htmlFor={`${baseId}-invite-fixed`}>Fixed amount</Label>
                 <Input
                   id={`${baseId}-invite-fixed`}
                   inputMode="decimal"
+                  ref={inviteFixedRef}
                   value={inviteFixed}
                   onChange={(event) => {
                     const nextValue = event.target.value;
@@ -1758,9 +1978,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     }
                   }}
                   placeholder="0"
-                  aria-describedby={inviteFixedErrorId ?? undefined}
-                  aria-invalid={inviteFixedError ? "true" : undefined}
-                  className={inviteFixedError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
+                  disabled={!isFixedMode}
+                  aria-describedby={composeAriaDescribedBy(inviteModeHelperId, inviteFixedErrorId)}
+                  aria-invalid={isFixedMode && inviteFixedError ? "true" : undefined}
+                  className={cn(
+                    !isFixedMode && "border-slate-200 text-slate-400",
+                    inviteFixedError && "border-rose-400 focus-visible:ring-rose-500",
+                  )}
                 />
                 {inviteFixedError ? (
                   <p id={inviteFixedErrorId} className="text-xs text-rose-600">
