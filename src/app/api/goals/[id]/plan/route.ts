@@ -17,7 +17,10 @@ import {
   serializeGoal,
 } from "../../utils";
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
@@ -26,7 +29,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const userId = userIdOrResponse;
     await dbConnect();
 
-    const goalId = parseObjectId(params.id);
+    const { id: goalIdParam } = await params;
+    const goalId = parseObjectId(goalIdParam);
     const goalDoc = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
 
     if (!goalDoc) {
@@ -40,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           {
             hint: "Ask the owner to share access with you.",
             logLevel: "warn",
-            context: { goalId: params.id, operation: "plan" },
+            context: { goalId: goalIdParam, operation: "plan" },
           },
         );
       }
@@ -48,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have been removed.",
         logLevel: "info",
-        context: { goalId: params.id, operation: "plan" },
+        context: { goalId: goalIdParam, operation: "plan" },
       });
     }
 
@@ -85,7 +89,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       {
         hint: "Please try again shortly.",
         error,
-        context: { goalId: params.id, operation: "plan" },
+        context: { goalId: goalIdParam, operation: "plan" },
       },
     );
   }
