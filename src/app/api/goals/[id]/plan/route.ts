@@ -21,6 +21,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id: goalIdParam } = await params;
   try {
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
@@ -28,8 +29,6 @@ export async function GET(
     }
     const userId = userIdOrResponse;
     await dbConnect();
-
-    const { id: goalIdParam } = await params;
     const goalId = parseObjectId(goalIdParam);
     const goalDoc = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
 

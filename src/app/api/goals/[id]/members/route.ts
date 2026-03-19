@@ -24,8 +24,9 @@ const buildObjectIdIssues = (issues: ZodIssue[]): never => {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const resolvedParams = await params;
   try {
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
@@ -34,7 +35,7 @@ export async function PATCH(
     const userId = userIdOrResponse;
     await dbConnect();
 
-    const goalId = parseObjectId(params.id);
+    const goalId = parseObjectId(resolvedParams.id);
     const goal = await GoalModel.findOne({ _id: goalId, ownerId: userId });
 
     if (!goal) {
@@ -48,7 +49,7 @@ export async function PATCH(
           {
             hint: "Ask the goal owner to apply these changes.",
             logLevel: "warn",
-            context: { goalId: params.id, operation: "update-members" },
+            context: { goalId: resolvedParams.id, operation: "update-members" },
           },
         );
       }
@@ -56,7 +57,7 @@ export async function PATCH(
       return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
         hint: "It may have been removed or you might not have access.",
         logLevel: "info",
-        context: { goalId: params.id, operation: "update-members" },
+        context: { goalId: resolvedParams.id, operation: "update-members" },
       });
     }
 
@@ -161,7 +162,7 @@ export async function PATCH(
       {
         hint: "Please try again shortly.",
         error,
-        context: { goalId: params.id, operation: "update-members" },
+        context: { goalId: resolvedParams.id, operation: "update-members" },
       },
     );
   }

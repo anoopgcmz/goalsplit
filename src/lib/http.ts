@@ -20,7 +20,7 @@ export class ApiError extends Error implements ApiErrorShape {
   }
 }
 
-export type ApiFetchInit<T> = RequestInit & { schema?: ZodSchema<T> };
+export type ApiFetchInit<T> = Omit<RequestInit, "body"> & { schema?: ZodSchema<T>; body?: unknown };
 
 const NETWORK_ERROR_MESSAGE =
   "We couldn't reach the server. Check your connection and try again.";
@@ -78,12 +78,13 @@ const ERROR_MESSAGE_BY_STATUS: Record<number, string> = {
 };
 
 function resolveErrorMessage(status: number, fallback?: string): string {
-  if (ERROR_MESSAGE_BY_STATUS[status]) {
-    return ERROR_MESSAGE_BY_STATUS[status];
+  const statusMessage = ERROR_MESSAGE_BY_STATUS[status];
+  if (statusMessage) {
+    return statusMessage;
   }
 
   if (status >= 500) {
-    return ERROR_MESSAGE_BY_STATUS[500];
+    return ERROR_MESSAGE_BY_STATUS[500] ?? "Something went wrong on our end. Please try again later.";
   }
 
   if (fallback?.trim()) {

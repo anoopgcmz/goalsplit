@@ -23,8 +23,9 @@ const RemoveGoalMemberParamsSchema = z.object({
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; userId: string } },
+  { params }: { params: Promise<{ id: string; userId: string }> },
 ) {
+  const resolvedParams = await params;
   try {
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
@@ -32,7 +33,7 @@ export async function DELETE(
     }
     const actingUserId = userIdOrResponse;
 
-    const { id, userId } = RemoveGoalMemberParamsSchema.parse(params);
+    const { id, userId } = RemoveGoalMemberParamsSchema.parse(resolvedParams);
 
     await dbConnect();
 
@@ -136,8 +137,8 @@ export async function DELETE(
         hint: "Please try again shortly.",
         error,
         context: {
-          goalId: params.id,
-          memberId: params.userId,
+          goalId: resolvedParams.id,
+          memberId: resolvedParams.userId,
           operation: "remove-member",
         },
       },

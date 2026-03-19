@@ -62,12 +62,15 @@ export function AppShell(props: AppShellProps): JSX.Element {
         .map((segment) => segment.trim())
         .filter((segment) => segment.length > 0);
       if (segments.length >= 2) {
-        return `${segments[0][0] ?? ""}${segments[segments.length - 1][0] ?? ""}`
+        const first = segments[0] ?? "";
+        const last = segments[segments.length - 1] ?? "";
+        return `${first[0] ?? ""}${last[0] ?? ""}`
           .toUpperCase()
           .slice(0, 2);
       }
-      if (segments.length === 1 && segments[0].length > 0) {
-        return segments[0][0]?.toUpperCase() ?? "GP";
+      if (segments.length === 1) {
+        const seg = segments[0] ?? "";
+        return seg.length > 0 ? (seg[0]?.toUpperCase() ?? "GP") : "GP";
       }
     }
 

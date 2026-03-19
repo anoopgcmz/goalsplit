@@ -9,6 +9,9 @@ import GoalModel from "@/models/goal";
 import InviteModel from "@/models/invite";
 import UserModel from "@/models/user";
 
+import { sendEmail } from "@/lib/email";
+import { inviteEmailTemplate } from "@/lib/email-templates";
+
 import { CreateGoalInviteInputSchema } from "../../schemas";
 import {
   createErrorResponse,
@@ -18,7 +21,7 @@ import {
   requireUserId,
 } from "../../utils";
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userIdOrResponse = requireUserId(request);
     if (isNextResponse(userIdOrResponse)) {
@@ -27,7 +30,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const userId = userIdOrResponse;
     await dbConnect();
 
-    const goalId = parseObjectId(params.id);
+    const { id } = await params;
+    const goalId = parseObjectId(id);
     const goal = await GoalModel.findOne({ _id: goalId, ownerId: userId });
 
     if (!goal) {
@@ -72,6 +76,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       `/shared/accept?token=${encodeURIComponent(token)}`,
       request.nextUrl.origin,
     ).toString();
+
+    const { subject, html, text } = inviteEmailTemplate({
+      inviterName: inviter?.name ?? null,
+      goalTitle: goal.title,
+      inviteUrl,
+      message: parsedBody.message ?? null,
+    });
+    sendEmail({ to: parsedBody.email, subject, html, text }).catch((err) => {
+      console.error('Failed to send invite email:', err);
+    });
 
     return NextResponse.json({ inviteUrl }, { status: 201 });
   } catch (error) {

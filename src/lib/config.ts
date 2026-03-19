@@ -166,7 +166,8 @@ const buildConfig = (env: EnvShape): AppConfig => {
 
 export const loadConfig = (rawEnv: RawEnv = process.env): AppConfig => {
   const nodeEnv = rawEnv.NODE_ENV ?? process.env.NODE_ENV ?? 'development';
-  const shouldApplyDefaults = nodeEnv !== 'production';
+  const isNextBuild = (rawEnv.NEXT_PHASE ?? process.env.NEXT_PHASE) === 'phase-production-build';
+  const shouldApplyDefaults = nodeEnv !== 'production' || isNextBuild;
 
   const envForParsing: Record<string, string> = {};
 

@@ -150,7 +150,7 @@ export function InvitationsPageClient(): JSX.Element {
         <li key={invitation.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-base font-semibold text-slate-900">{invitation.goalTitle}</h3>
-            <Badge variant={badgeVariant}>{STATUS_LABEL[status]}</Badge>
+            <Badge variant={badgeVariant}>{STATUS_LABEL[status] ?? status}</Badge>
           </div>
           <p className="mt-1 text-sm text-slate-600">
             Invited by {inviterDisplay} • {formatRelativeTime(invitation.createdAt)}
@@ -181,7 +181,6 @@ export function InvitationsPageClient(): JSX.Element {
             <Button
               type="button"
               variant="secondary"
-              size="sm"
               onClick={() => {
                 void handleViewDetails(invitation.id);
               }}
@@ -192,7 +191,6 @@ export function InvitationsPageClient(): JSX.Element {
               <>
                 <Button
                   type="button"
-                  size="sm"
                   onClick={() => {
                     void handleAction(invitation.id, "accept");
                   }}
@@ -203,7 +201,6 @@ export function InvitationsPageClient(): JSX.Element {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   onClick={() => {
                     void handleAction(invitation.id, "decline");
                   }}
@@ -221,12 +218,12 @@ export function InvitationsPageClient(): JSX.Element {
   );
 
   const buildTabContent = (status: InvitationStatusKey) => {
-    const items = grouped[status];
+    const items = grouped[status] ?? [];
     if (isLoading && invitations.length === 0) {
       return <p className="py-6 text-sm text-slate-500">Loading invitations…</p>;
     }
     if (items.length === 0) {
-      return <p className="py-6 text-sm text-slate-500">No {STATUS_LABEL[status].toLowerCase()} invitations yet.</p>;
+      return <p className="py-6 text-sm text-slate-500">No {(STATUS_LABEL[status] ?? status).toLowerCase()} invitations yet.</p>;
     }
     return <ul className="space-y-4">{items.map((invitation) => renderInvitationCard(invitation, status))}</ul>;
   };
@@ -235,7 +232,7 @@ export function InvitationsPageClient(): JSX.Element {
 
   const tabs = statusOrder.map((status) => ({
     id: status,
-    label: `${STATUS_LABEL[status]} (${grouped[status].length})`,
+    label: `${STATUS_LABEL[status] ?? status} (${(grouped[status] ?? []).length})`,
     content: buildTabContent(status),
   }));
 
@@ -255,7 +252,7 @@ export function InvitationsPageClient(): JSX.Element {
       {error ? (
         <ErrorState
           title="We couldn’t load invitations"
-          message={error}
+          description={error}
           retryLabel="Try again"
           onRetry={() => void refresh()}
         />
