@@ -9,6 +9,9 @@ import GoalModel from "@/models/goal";
 import InviteModel from "@/models/invite";
 import UserModel from "@/models/user";
 
+import { sendEmail } from "@/lib/email";
+import { inviteEmailTemplate } from "@/lib/email-templates";
+
 import { CreateGoalInviteInputSchema } from "../../schemas";
 import {
   createErrorResponse,
@@ -72,6 +75,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       `/shared/accept?token=${encodeURIComponent(token)}`,
       request.nextUrl.origin,
     ).toString();
+
+    try {
+      const template = inviteEmailTemplate({
+        inviterName: inviter?.name ?? null,
+        goalTitle: goal.title,
+        inviteUrl,
+        message: parsedBody.message ?? null,
+      });
+      await sendEmail({ to: parsedBody.email, ...template });
+    } catch (emailError) {
+      console.error("[invite] Failed to send invite email:", emailError);
+    }
 
     return NextResponse.json({ inviteUrl }, { status: 201 });
   } catch (error) {

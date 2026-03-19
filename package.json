@@ -13,18 +13,21 @@
     "test:quick": "playwright test --config=playwright.quick.config.ts"
   },
   "dependencies": {
+    "@types/nodemailer": "^7.0.11",
     "framer-motion": "^11.0.0",
     "mongoose": "^8.6.0",
     "next": "^15.0.0",
+    "nodemailer": "^8.0.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "resend": "^6.9.4",
     "zod": "3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@types/node": "22.5.4",
     "@types/react": "18.3.4",
     "@types/react-dom": "18.3.1",
-    "@playwright/test": "1.56.1",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
     "autoprefixer": "10.4.19",

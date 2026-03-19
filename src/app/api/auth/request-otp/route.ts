@@ -6,6 +6,8 @@ import { dbConnect } from "@/lib/mongo";
 import OtpCodeModel from "@/models/otp-code";
 import OtpRequestCounterModel from "@/models/otp-request-counter";
 import { DEMO_OTP_CODE, DEMO_OTP_EXPIRY_MS, isDemoEmail } from "@/lib/auth/demo";
+import { sendEmail } from "@/lib/email";
+import { otpEmailTemplate } from "@/lib/email-templates";
 
 import { RequestOtpInputSchema } from "../schemas";
 import {
@@ -142,7 +144,14 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    await createOtpCode(email);
+    const otpRecord = await createOtpCode(email);
+
+    try {
+      const template = otpEmailTemplate(otpRecord.code);
+      await sendEmail({ to: email, ...template });
+    } catch (emailError) {
+      console.error("[request-otp] Failed to send OTP email:", emailError);
+    }
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
