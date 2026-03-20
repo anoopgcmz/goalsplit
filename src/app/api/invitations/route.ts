@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     const email = normaliseEmail(user.email);
 
-    const invites = await InviteModel.find({ email }).sort({ createdAt: -1 });
+    const invites = await InviteModel.find({ email, goalTitle: { $exists: true } }).sort({ createdAt: -1 });
 
     await markExpiredInvitations(invites);
 

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { Types } from "mongoose";
 
 import type { InviteDoc } from "@/models/invite";
+import InviteModel from "@/models/invite";
 
 import {
   InvitationStatusQuerySchema,
@@ -42,9 +43,13 @@ export const markInviteExpiredIfNeeded = async (invite: InviteDoc): Promise<Invi
     return invite;
   }
 
+  const respondedAt = invite.respondedAt ?? new Date();
+  await InviteModel.updateOne(
+    { _id: invite._id },
+    { $set: { status: "expired", respondedAt } },
+  );
   invite.status = "expired";
-  invite.respondedAt = invite.respondedAt ?? new Date();
-  await invite.save();
+  invite.respondedAt = respondedAt;
 
   return invite;
 };
