@@ -285,25 +285,25 @@ export const CreateGoalInviteInputSchema = z
       .default(10080),
     defaultSplitPercent: z
       .union([
+        z.undefined(),
+        z.null(),
         z
           .coerce
           .number({ invalid_type_error: "Enter a default split percentage." })
           .finite({ message: "Enter a default split percentage." })
           .min(0, "Split percent must be at least 0%.")
-          .max(100, "Split percent cannot exceed 100%.") ,
-        z.undefined(),
-        z.null(),
+          .max(100, "Split percent cannot exceed 100%."),
       ])
       .transform((value) => value ?? undefined),
     fixedAmount: z
       .union([
+        z.null(),
+        z.undefined(),
         z
           .coerce
           .number({ invalid_type_error: "Enter a fixed amount using numbers only." })
           .finite({ message: "Enter a fixed amount using numbers only." })
           .min(0, "Fixed amount cannot be negative."),
-        z.undefined(),
-        z.null(),
       ])
       .transform((value) => value ?? null),
   })
