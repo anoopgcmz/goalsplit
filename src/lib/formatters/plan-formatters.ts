@@ -16,10 +16,8 @@ export const formatCurrency = (
   const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency: currencyCode,
-    minimumFractionDigits:
-      intlOptions.minimumFractionDigits ?? intlOptions.maximumFractionDigits ?? defaultDigits,
-    maximumFractionDigits:
-      intlOptions.maximumFractionDigits ?? intlOptions.minimumFractionDigits ?? defaultDigits,
+    minimumFractionDigits: defaultDigits,
+    maximumFractionDigits: defaultDigits,
     ...intlOptions,
   });
 

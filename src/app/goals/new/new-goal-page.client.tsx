@@ -81,6 +81,17 @@ export default function NewGoalPage(): JSX.Element {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
+  const RETURN_PRESETS = [
+    { label: "HYSA", description: "~4.5%", value: "4.5" },
+    { label: "Index Funds", description: "~8%", value: "8" },
+    { label: "Mixed", description: "~6%", value: "6" },
+  ] as const;
+
+  const handlePresetClick = (value: string) => {
+    setState((prev) => ({ ...prev, expectedReturn: value }));
+    setTouched((prev) => ({ ...prev, expectedReturn: true }));
+  };
+
   const isComplete =
     state.title.trim().length > 0 &&
     state.targetAmount.trim().length > 0 &&
@@ -329,6 +340,26 @@ export default function NewGoalPage(): JSX.Element {
                       content="Try 6–10% to compare scenarios."
                       label="Learn how to pick an expected return"
                     />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {RETURN_PRESETS.map((preset) => {
+                      const isActive = state.expectedReturn === preset.value;
+                      return (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => handlePresetClick(preset.value)}
+                          className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                            isActive
+                              ? "border-primary-500 bg-primary-50 text-primary-700"
+                              : "border-slate-300 bg-white text-slate-600 hover:border-primary-400 hover:text-primary-700"
+                          }`}
+                          aria-pressed={isActive}
+                        >
+                          {preset.label} <span className="opacity-75">{preset.description}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                   <Input
                     id="expected-return"
