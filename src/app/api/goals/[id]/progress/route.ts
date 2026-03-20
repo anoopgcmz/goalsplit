@@ -1,0 +1,141 @@
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
+
+import { dbConnect } from "@/lib/mongo";
+import { buildGoalPlan } from "@/lib/goals/plan";
+import GoalModel from "@/models/goal";
+import UserModel from "@/models/user";
+import ContributionModel from "@/models/contribution";
+import { CheckInModel } from "@/models/checkin";
+
+import {
+  buildGoalAccessFilter,
+  createErrorResponse,
+  handleZodError,
+  isNextResponse,
+  parseObjectId,
+  requireUserId,
+  serializeGoal,
+} from "../../utils";
+import { normalizePeriod } from "../../../contributions/schemas";
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: goalIdParam } = await params;
+  try {
+    const userIdOrResponse = requireUserId(request);
+    if (isNextResponse(userIdOrResponse)) {
+      return userIdOrResponse;
+    }
+    const userId = userIdOrResponse;
+    await dbConnect();
+
+    const goalId = parseObjectId(goalIdParam);
+    const goalDoc = await GoalModel.findOne(buildGoalAccessFilter(goalId, userId));
+
+    if (!goalDoc) {
+      const goalExists = await GoalModel.exists({ _id: goalId });
+      if (goalExists) {
+        return createErrorResponse(
+          "GOAL_FORBIDDEN",
+          "This goal belongs to someone else.",
+          403,
+          {
+            hint: "Ask the owner to share access with you.",
+            logLevel: "warn",
+            context: { goalId: goalIdParam, operation: "progress" },
+          },
+        );
+      }
+      return createErrorResponse("GOAL_NOT_FOUND", "We could not find that goal.", 404, {
+        hint: "It may have been removed.",
+        logLevel: "info",
+        context: { goalId: goalIdParam, operation: "progress" },
+      });
+    }
+
+    const serialized = serializeGoal(goalDoc);
+    const period = normalizePeriod(new Date());
+    const memberUserIds = serialized.members.map((m) => m.userId);
+
+    const [users, contributions, checkins] = await Promise.all([
+      UserModel.find({ _id: { $in: memberUserIds } }).lean(),
+      ContributionModel.find({
+        goalId,
+        period,
+        userId: { $in: memberUserIds },
+      }).lean(),
+      CheckInModel.find({
+        goalId,
+        period,
+        userId: { $in: memberUserIds },
+      }).lean(),
+    ]);
+
+    const memberDetails = new Map(
+      users.map((user) => {
+        const normalizedId = user._id.toString();
+        const trimmedName = typeof user.name === "string" ? user.name.trim() : "";
+        return [
+          normalizedId,
+          {
+            email: user.email,
+            name: trimmedName.length > 0 ? trimmedName : null,
+          },
+        ] as const;
+      }),
+    );
+
+    const plan = buildGoalPlan(serialized, memberDetails);
+
+    const contributionMap = new Map(
+      contributions.map((c) => [c.userId.toString(), c.amount]),
+    );
+
+    const checkinMap = new Map(
+      checkins.map((c) => [c.userId.toString(), c.status]),
+    );
+
+    const members = plan.members.map((member) => {
+      const contributedAmount = contributionMap.get(member.userId) ?? 0;
+      const checkinStatus = checkinMap.get(member.userId) ?? "no_checkin";
+      const requiredAmount = member.perPeriod;
+      const isOnTrack =
+        contributedAmount >= requiredAmount || checkinStatus === "confirmed";
+
+      return {
+        userId: member.userId,
+        name: member.name ?? null,
+        email: member.email ?? "",
+        role: member.role,
+        requiredAmount,
+        contributedAmount,
+        checkinStatus,
+        isOnTrack,
+      };
+    });
+
+    return NextResponse.json({
+      period: period.toISOString(),
+      members,
+    });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return handleZodError(error);
+    }
+
+    return createErrorResponse(
+      "GOAL_INTERNAL_ERROR",
+      "We could not load progress right now.",
+      500,
+      {
+        hint: "Please try again shortly.",
+        error,
+        context: { goalId: goalIdParam, operation: "progress" },
+      },
+    );
+  }
+}
