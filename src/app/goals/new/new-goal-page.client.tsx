@@ -316,13 +316,13 @@ export default function NewGoalPage(): JSX.Element {
             </Card>
           </section>
 
-          <section aria-labelledby="assumptions-heading">
+          <section aria-labelledby="quick-tweaks-heading">
             <Card>
               <CardHeader className="space-y-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Assumptions</p>
-                  <h2 id="assumptions-heading" className="text-xl font-semibold text-slate-900">
-                    Outline how you plan to invest
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Compare with Quick Tweaks</p>
+                  <h2 id="quick-tweaks-heading" className="text-xl font-semibold text-slate-900">
+                    Adjust assumptions in real time
                   </h2>
                 </div>
                 <p className="text-sm text-slate-600">
@@ -361,6 +361,24 @@ export default function NewGoalPage(): JSX.Element {
                       );
                     })}
                   </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={20}
+                    step={0.5}
+                    value={state.expectedReturn === "" ? 0 : Number(state.expectedReturn)}
+                    onChange={(event) => {
+                      setState((prev) => ({ ...prev, expectedReturn: event.target.value }));
+                      setTouched((prev) => ({ ...prev, expectedReturn: true }));
+                    }}
+                    className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
+                    aria-label="Expected annual return slider"
+                    aria-describedby="expected-return-hint"
+                  />
+                  <div id="expected-return-hint" className="flex justify-between text-xs text-slate-500">
+                    <span>0%</span>
+                    <span>20%</span>
+                  </div>
                   <Input
                     id="expected-return"
                     name="expectedReturn"
@@ -373,7 +391,7 @@ export default function NewGoalPage(): JSX.Element {
                     onChange={handleChange("expectedReturn")}
                     onBlur={handleBlur("expectedReturn")}
                     aria-invalid={showError("expectedReturn")}
-                    aria-describedby={showError("expectedReturn") ? "expected-return-error" : undefined}
+                    aria-describedby={showError("expectedReturn") ? "expected-return-error expected-return-hint" : "expected-return-hint"}
                     required
                   />
                   {showError("expectedReturn") ? (
