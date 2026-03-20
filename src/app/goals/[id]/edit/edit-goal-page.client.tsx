@@ -21,7 +21,6 @@ import {
   type FormState,
   type TouchedState,
   validateForm,
-  type Compounding,
   type ContributionFrequency,
 } from "@/features/goals/goal-form";
 import { updateGoal } from "@/lib/api/goals";
@@ -95,7 +94,7 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
   };
 
   const handleRadioChange = (
-    field: "compounding" | "contributionFrequency",
+    field: "contributionFrequency",
     value: "monthly" | "yearly",
   ) => {
     setState((prev) => ({ ...prev, [field]: value }));
@@ -115,9 +114,9 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
   };
 
   const RETURN_PRESETS = [
-    { label: "HYSA", description: "~4.5%", value: "4.5" },
-    { label: "Index Funds", description: "~8%", value: "8" },
-    { label: "Mixed", description: "~6%", value: "6" },
+    { label: "Conservative", description: "~6%", value: "6" },
+    { label: "Moderate", description: "~10%", value: "10" },
+    { label: "Aggressive", description: "~14%", value: "14" },
   ] as const;
 
   const handlePresetClick = (value: string) => {
@@ -459,48 +458,25 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
                   ) : null}
                 </div>
 
-                {/* Compounding + Contribution frequency toggles */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Compounding</Label>
-                    <div className="flex gap-2">
-                      {(["monthly", "yearly"] as Compounding[]).map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => handleRadioChange("compounding", option)}
-                          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                            state.compounding === option
-                              ? "border-primary-500 bg-primary-50 text-primary-700"
-                              : "border-slate-300 bg-white text-slate-600 hover:border-primary-400"
-                          }`}
-                          aria-pressed={state.compounding === option}
-                        >
-                          <span className="capitalize">{option}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Contribute</Label>
-                    <div className="flex gap-2">
-                      {(["monthly", "yearly"] as ContributionFrequency[]).map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => handleRadioChange("contributionFrequency", option)}
-                          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                            state.contributionFrequency === option
-                              ? "border-primary-500 bg-primary-50 text-primary-700"
-                              : "border-slate-300 bg-white text-slate-600 hover:border-primary-400"
-                          }`}
-                          aria-pressed={state.contributionFrequency === option}
-                        >
-                          <span className="capitalize">{option}</span>
-                        </button>
-                      ))}
-                    </div>
+                {/* Contribution frequency toggle */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">How often will you contribute?</Label>
+                  <div className="flex gap-2">
+                    {(["monthly", "yearly"] as ContributionFrequency[]).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => handleRadioChange("contributionFrequency", option)}
+                        className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                          state.contributionFrequency === option
+                            ? "border-primary-500 bg-primary-50 text-primary-700"
+                            : "border-slate-300 bg-white text-slate-600 hover:border-primary-400"
+                        }`}
+                        aria-pressed={state.contributionFrequency === option}
+                      >
+                        <span className="capitalize">{option}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </CardContent>
