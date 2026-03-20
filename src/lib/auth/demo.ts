@@ -8,7 +8,7 @@ export const DEMO_USERS = [
 
 export type DemoUser = (typeof DEMO_USERS)[number];
 
-const demoUserEmailSet = new Set(DEMO_USERS.map((user) => user.email));
+const demoUserEmailSet = new Set<string>(DEMO_USERS.map((user) => user.email));
 
 export const DEMO_OTP_CODE = "123456";
 export const DEMO_OTP_EXPIRY_MS = 100 * 24 * 60 * 60 * 1000;

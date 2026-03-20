@@ -135,7 +135,7 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
       publish({
         title: "No changes to save",
         description: "Update a field before saving your goal.",
-        variant: "info",
+        variant: "success",
       });
       setIsSubmitting(false);
       return;
@@ -377,7 +377,7 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
                     <div className="flex flex-wrap gap-2" id="compounding">
                       <Button
                         type="button"
-                        variant={state.compounding === "monthly" ? "default" : "outline"}
+                        variant={state.compounding === "monthly" ? "primary" : "secondary"}
                         onClick={() => handleRadioChange("compounding", "monthly")}
                         aria-pressed={state.compounding === "monthly"}
                       >
@@ -385,7 +385,7 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
                       </Button>
                       <Button
                         type="button"
-                        variant={state.compounding === "yearly" ? "default" : "outline"}
+                        variant={state.compounding === "yearly" ? "primary" : "secondary"}
                         onClick={() => handleRadioChange("compounding", "yearly")}
                         aria-pressed={state.compounding === "yearly"}
                       >
@@ -400,7 +400,7 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
                   <div className="flex flex-wrap items-center gap-2" id="contribution-frequency">
                     <Button
                       type="button"
-                      variant={state.contributionFrequency === "monthly" ? "default" : "outline"}
+                      variant={state.contributionFrequency === "monthly" ? "primary" : "secondary"}
                       onClick={() => handleRadioChange("contributionFrequency", "monthly")}
                       aria-pressed={state.contributionFrequency === "monthly"}
                     >
@@ -408,15 +408,16 @@ export default function EditGoalPage(props: EditGoalPageProps): JSX.Element {
                     </Button>
                     <Button
                       type="button"
-                      variant={state.contributionFrequency === "yearly" ? "default" : "outline"}
+                      variant={state.contributionFrequency === "yearly" ? "primary" : "secondary"}
                       onClick={() => handleRadioChange("contributionFrequency", "yearly")}
                       aria-pressed={state.contributionFrequency === "yearly"}
                     >
                       Yearly
                     </Button>
-                    <InfoTooltip>
-                      We&apos;ll use this to calculate your ongoing contributions and project your progress.
-                    </InfoTooltip>
+                    <InfoTooltip
+                      content="We'll use this to calculate your ongoing contributions and project your progress."
+                      label="Contribution frequency info"
+                    />
                   </div>
                 </div>
               </CardContent>

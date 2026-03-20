@@ -621,7 +621,7 @@ const initializeMemberRows = (members: GoalPlanResponse["members"]): MemberRowSt
     userId: member.userId,
     role: member.role,
     name: member.name ?? null,
-    email: member.email,
+    ...(member.email !== undefined ? { email: member.email } : {}),
     splitPercent: member.splitPercent != null ? member.splitPercent.toString() : "",
     fixedAmount: member.fixedAmount != null ? member.fixedAmount.toString() : "",
   }));
@@ -976,7 +976,6 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
             userId: member.userId,
             role: member.role,
             name: null,
-            email: undefined,
             splitPercent:
               member.splitPercent != null ? member.splitPercent.toString() : "",
             fixedAmount:
@@ -1564,10 +1563,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
 
           if (generalMessages.length > 0) {
             setInviteStatus("error");
-            setInviteMessage(generalMessages[0]);
+            setInviteMessage(generalMessages[0] ?? null);
             publish({
               title: "Invite failed",
-              description: generalMessages[0],
+              ...(generalMessages[0] !== undefined ? { description: generalMessages[0] } : {}),
               variant: "error",
             });
             focusInviteEmailField();

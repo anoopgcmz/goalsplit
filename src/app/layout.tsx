@@ -1,11 +1,8 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "Goal Planner",
@@ -19,7 +16,7 @@ export default function RootLayout(
 
   return (
     <html lang="en" className="bg-background text-slate-900">
-      <body className={inter.className}>
+      <body>
         <AppShell>{children}</AppShell>
       </body>
     </html>

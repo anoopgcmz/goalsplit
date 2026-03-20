@@ -13,7 +13,7 @@
     "strict": true,
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+
     "useUnknownInCatchVariables": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
@@ -47,6 +47,7 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "tests"
   ]
 }

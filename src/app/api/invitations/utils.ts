@@ -76,7 +76,7 @@ export const parseStatuses = (request: NextRequest): InvitationStatus[] | null =
     );
   }
 
-  if (typeof parsed === "string" && parsed !== "all") {
+  if (typeof parsed === "string") {
     return [parsed];
   }
 

@@ -7,6 +7,9 @@ import OtpCodeModel from "@/models/otp-code";
 import OtpRequestCounterModel from "@/models/otp-request-counter";
 import { DEMO_OTP_CODE, DEMO_OTP_EXPIRY_MS, isDemoEmail } from "@/lib/auth/demo";
 
+import { sendEmail } from "@/lib/email";
+import { otpEmailTemplate } from "@/lib/email-templates";
+
 import { RequestOtpInputSchema } from "../schemas";
 import {
   createAuthErrorResponse,
@@ -142,7 +145,12 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    await createOtpCode(email);
+    const otpRecord = await createOtpCode(email);
+
+    const { subject, html, text } = otpEmailTemplate(otpRecord.code);
+    sendEmail({ to: email, subject, html, text }).catch((err) => {
+      console.error('Failed to send OTP email:', err);
+    });
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

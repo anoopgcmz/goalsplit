@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ interface StatusState {
   message: string;
 }
 
-export default function LoginPage(): JSX.Element {
+function LoginPageContent(): JSX.Element {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -383,5 +383,13 @@ export default function LoginPage(): JSX.Element {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage(): JSX.Element {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
   );
 }

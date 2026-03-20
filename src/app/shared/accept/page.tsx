@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ const getShareDescription = (invite: InvitePreview) => {
   return "Contribution details will be shared after you join.";
 };
 
-export default function SharedAcceptPage(): JSX.Element {
+function SharedAcceptPageContent(): JSX.Element {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
@@ -215,41 +215,6 @@ export default function SharedAcceptPage(): JSX.Element {
     };
   }, [loadInvite]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !token || autoJoinState !== "idle") {
-      return;
-    }
-
-    const storedToken = window.sessionStorage.getItem(AUTO_JOIN_STORAGE_KEY);
-
-    if (storedToken === token) {
-      setAutoJoinState("pending");
-    }
-  }, [token, autoJoinState]);
-
-  useEffect(() => {
-    if (
-      autoJoinState !== "pending" ||
-      authStatus !== "authenticated" ||
-      viewState !== "valid" ||
-      !invite ||
-      acceptStatus === "loading"
-    ) {
-      return;
-    }
-
-    void handleJoinGoal();
-  }, [autoJoinState, authStatus, viewState, invite, acceptStatus, handleJoinGoal]);
-
-  useEffect(() => {
-    if (viewState !== "invalid" || typeof window === "undefined") {
-      return;
-    }
-
-    window.sessionStorage.removeItem(AUTO_JOIN_STORAGE_KEY);
-    setAutoJoinState("completed");
-  }, [viewState]);
-
   const handleJoinGoal = useCallback(async () => {
     if (!token || !invite || acceptStatus === "loading") {
       return;
@@ -317,6 +282,41 @@ export default function SharedAcceptPage(): JSX.Element {
       });
     }
   }, [token, invite, acceptStatus, publish, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !token || autoJoinState !== "idle") {
+      return;
+    }
+
+    const storedToken = window.sessionStorage.getItem(AUTO_JOIN_STORAGE_KEY);
+
+    if (storedToken === token) {
+      setAutoJoinState("pending");
+    }
+  }, [token, autoJoinState]);
+
+  useEffect(() => {
+    if (
+      autoJoinState !== "pending" ||
+      authStatus !== "authenticated" ||
+      viewState !== "valid" ||
+      !invite ||
+      acceptStatus === "loading"
+    ) {
+      return;
+    }
+
+    void handleJoinGoal();
+  }, [autoJoinState, authStatus, viewState, invite, acceptStatus, handleJoinGoal]);
+
+  useEffect(() => {
+    if (viewState !== "invalid" || typeof window === "undefined") {
+      return;
+    }
+
+    window.sessionStorage.removeItem(AUTO_JOIN_STORAGE_KEY);
+    setAutoJoinState("completed");
+  }, [viewState]);
 
   const handleLogin = () => {
     if (token && typeof window !== "undefined") {
@@ -467,5 +467,13 @@ export default function SharedAcceptPage(): JSX.Element {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function SharedAcceptPage(): JSX.Element {
+  return (
+    <Suspense>
+      <SharedAcceptPageContent />
+    </Suspense>
   );
 }

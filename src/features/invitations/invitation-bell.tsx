@@ -220,7 +220,7 @@ export function InvitationBell(): JSX.Element | null {
       return (
         <div className="space-y-2 py-4 text-sm text-rose-600">
           <p>{error}</p>
-          <Button type="button" variant="secondary" size="sm" onClick={() => void refresh()}>
+          <Button type="button" variant="secondary" onClick={() => void refresh()}>
             Try again
           </Button>
         </div>
@@ -256,7 +256,6 @@ export function InvitationBell(): JSX.Element | null {
                   <Button
                     type="button"
                     variant="secondary"
-                    size="sm"
                     onClick={() => {
                       void handleViewDetails(invitation.id);
                     }}
@@ -265,7 +264,6 @@ export function InvitationBell(): JSX.Element | null {
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
                     onClick={() => void handleAction(invitation.id, "accept")}
                     disabled={actionLoading?.startsWith(invitation.id) ?? false}
                   >
@@ -274,7 +272,6 @@ export function InvitationBell(): JSX.Element | null {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
                     onClick={() => void handleAction(invitation.id, "decline")}
                     disabled={actionLoading?.startsWith(invitation.id) ?? false}
                   >
@@ -324,7 +321,7 @@ export function InvitationBell(): JSX.Element | null {
         >
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-900">Pending invitations</p>
-            <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()}>
+            <Button type="button" variant="ghost" onClick={() => void refresh()}>
               Refresh
             </Button>
           </div>
