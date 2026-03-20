@@ -8,6 +8,7 @@ import {
   requireUserId,
 } from "@/app/api/goals/utils";
 import { requiredPaymentForFutureValue, yearFractionFromDates } from "@/lib/financial";
+import { AiParseResponseSchema, type AiParseResponse } from "./schema";
 
 const AiParseRequestSchema = z.object({
   prompt: z
@@ -16,23 +17,6 @@ const AiParseRequestSchema = z.object({
     .min(10, "Please describe your goal in a bit more detail.")
     .max(1000, "Keep the description under 1000 characters."),
 });
-
-export const AiParseResponseSchema = z.object({
-  title: z.string(),
-  targetAmount: z.number().positive(),
-  currency: z.enum(["INR", "USD", "EUR", "GBP"]),
-  targetDate: z.string(),
-  expectedRate: z.number().min(1).max(30),
-  compounding: z.enum(["monthly", "yearly"]),
-  contributionFrequency: z.enum(["monthly", "yearly"]),
-  existingSavings: z.number().min(0),
-  memberCount: z.number().int().min(1),
-  perPersonAmount: z.number().positive(),
-  perPersonMonthly: z.number().min(0),
-  reasoning: z.string(),
-});
-
-export type AiParseResponse = z.infer<typeof AiParseResponseSchema>;
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -158,7 +142,7 @@ export async function POST(request: NextRequest) {
     Array.isArray((groqData as { choices: unknown[] }).choices)
       ? (
           groqData as {
-            choices: Array<{ message?: { content?: string } }>;
+            choices: { message?: { content?: string } }[];
           }
         ).choices[0]?.message?.content
       : null;
