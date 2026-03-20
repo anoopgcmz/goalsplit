@@ -2,7 +2,6 @@
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { motion } from "framer-motion";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,11 +23,6 @@ import {
   UpdateGoalMembersInputSchema,
   type GoalPlanResponse,
 } from "@/app/api/goals/schemas";
-import {
-  netTargetAfterExisting,
-  requiredLumpSumForFutureValue,
-  requiredPaymentForFutureValue,
-} from "@/lib/financial";
 import { useFormatters } from "@/lib/hooks/use-formatters";
 import {
   fetchGoalPlan,
@@ -43,7 +37,6 @@ import { normalizeZodIssues } from "@/lib/validation/zod";
 import { cn } from "@/lib/utils";
 
 type ContributionFrequency = GoalPlanResponse["assumptions"]["contributionFrequency"];
-type CompoundingFrequency = GoalPlanResponse["assumptions"]["compounding"];
 
 interface GoalPlanPageProps {
   goalId: string;
@@ -51,122 +44,14 @@ interface GoalPlanPageProps {
   initialUser?: AuthUser | null;
 }
 
-interface ScenarioOptions {
-  ratePercent?: number;
-  timelineOffsetMonths?: number;
-}
-
-interface ScenarioMetrics {
-  perPeriod: number;
-  lumpSum: number;
-  contributionsTotal: number;
-  growthTotal: number;
-  contributionPercent: number;
-  growthPercent: number;
-  periodCount: number;
-  targetDate: Date;
-  years: number;
-  months: number;
-  ratePercent: number;
-}
-
 const frequencyToLabel = (frequency: ContributionFrequency) =>
   frequency === "monthly" ? "month" : "year";
-
-const contributionFrequencyToNPerYear = (frequency: ContributionFrequency) =>
-  frequency === "monthly" ? 12 : 1;
-
-const compoundingFrequencyToNPerYear = (frequency: CompoundingFrequency) =>
-  frequency === "monthly" ? 12 : 1;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-const addMonths = (date: Date, months: number) => {
-  const newDate = new Date(date.getTime());
-  const desiredMonth = newDate.getMonth() + months;
-  newDate.setMonth(desiredMonth);
-  return newDate;
-};
-
-const deriveHorizonBreakdown = (totalPeriods: number, nPerYear: number) => {
-  const totalMonths = (totalPeriods / nPerYear) * 12;
-  const clampedMonths = Math.max(totalMonths, 0);
-  let years = Math.floor(clampedMonths / 12);
-  let months = Math.round(clampedMonths - years * 12);
-
-  if (months === 12) {
-    years += 1;
-    months = 0;
-  }
-
-  return { years, months };
-};
-
 const roundCurrency = (value: number) =>
   Number.isFinite(value) ? Math.max(value, 0) : 0;
-
-const calculateScenario = (
-  plan: GoalPlanResponse,
-  options: ScenarioOptions = {},
-): ScenarioMetrics => {
-  const baseYears = plan.horizon.totalPeriods / plan.horizon.nPerYear;
-  const adjustmentMonths = options.timelineOffsetMonths ?? 0;
-  const adjustedYears = Math.max(baseYears + adjustmentMonths / 12, 0);
-  const ratePercent = options.ratePercent ?? plan.assumptions.expectedRate;
-  const contributionFrequency = plan.assumptions.contributionFrequency;
-  const contributionNPerYear = contributionFrequencyToNPerYear(contributionFrequency);
-  const compoundingNPerYear = compoundingFrequencyToNPerYear(plan.assumptions.compounding);
-  const existing = plan.goal.existingSavings ?? 0;
-  const target = plan.goal.targetAmount;
-
-  const netTarget = netTargetAfterExisting(
-    target,
-    existing,
-    ratePercent,
-    compoundingNPerYear,
-    adjustedYears,
-  );
-
-  const perPeriod = requiredPaymentForFutureValue(
-    netTarget,
-    ratePercent,
-    contributionNPerYear,
-    adjustedYears,
-  );
-
-  const lumpSum = requiredLumpSumForFutureValue(
-    netTarget,
-    ratePercent,
-    compoundingNPerYear,
-    adjustedYears,
-  );
-
-  const totalPeriods = contributionNPerYear * adjustedYears;
-  const finitePerPeriod = Number.isFinite(perPeriod) ? perPeriod : 0;
-  const finiteLump = Number.isFinite(lumpSum) ? lumpSum : 0;
-  const contributionsTotal = existing + finiteLump + finitePerPeriod * totalPeriods;
-  const growthTotal = Math.max(target - contributionsTotal, 0);
-  const contributionPercent = target > 0 ? clamp((contributionsTotal / target) * 100, 0, 100) : 0;
-  const growthPercent = target > 0 ? clamp(100 - contributionPercent, 0, 100) : 0;
-  const baseTargetDate = new Date(plan.goal.targetDate);
-  const adjustedTargetDate = adjustmentMonths !== 0 ? addMonths(baseTargetDate, adjustmentMonths) : baseTargetDate;
-  const breakdown = deriveHorizonBreakdown(totalPeriods, contributionNPerYear);
-
-  return {
-    perPeriod,
-    lumpSum,
-    contributionsTotal,
-    growthTotal,
-    contributionPercent,
-    growthPercent,
-    periodCount: totalPeriods,
-    targetDate: adjustedTargetDate,
-    years: breakdown.years,
-    months: breakdown.months,
-    ratePercent,
-  };
-};
 
 const PlanSummaryCard = (props: {
   plan: GoalPlanResponse;
@@ -314,244 +199,6 @@ const SharedContributions = (props: {
         Together you’ll contribute {formatCurrency(roundCurrency(plan.totals.perPeriod))} per {periodLabel}.
       </p>
     </section>
-  );
-};
-
-const ScenarioCompare = (props: {
-  plan: GoalPlanResponse;
-  baseScenario: ScenarioMetrics;
-  formatCurrency: (
-    value: number,
-    currencyOverride?: string,
-    options?: Intl.NumberFormatOptions,
-  ) => string;
-  formatPercent: (value: number, options?: Intl.NumberFormatOptions) => string;
-  formatHorizon: (input: { years?: number; months?: number; totalMonths?: number } | number) => string;
-  onReset: () => Promise<void> | void;
-  isResetting: boolean;
-}) => {
-  const { plan, baseScenario, formatCurrency, formatPercent, formatHorizon, onReset, isResetting } = props;
-  const { publish } = useToast();
-  const [ratePercent, setRatePercent] = useState(baseScenario.ratePercent);
-  const [timelineOffsetMonths, setTimelineOffsetMonths] = useState(0);
-
-  const adjustedScenario = useMemo(
-    () => calculateScenario(plan, { ratePercent, timelineOffsetMonths }),
-    [plan, ratePercent, timelineOffsetMonths],
-  );
-
-  useEffect(() => {
-    setRatePercent(baseScenario.ratePercent);
-    setTimelineOffsetMonths(0);
-  }, [baseScenario.ratePercent]);
-
-  const minAdjustment = -36;
-  const maxAdjustment = 36;
-  const periodLabel = frequencyToLabel(plan.assumptions.contributionFrequency);
-
-  const isInfeasible = !Number.isFinite(adjustedScenario.perPeriod) || adjustedScenario.perPeriod <= 0;
-
-  const baseReturnLabel = formatPercent(baseScenario.ratePercent, {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
-  });
-  const adjustedReturnLabel = formatPercent(ratePercent, {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
-  });
-
-  const basePerPeriodValue = Number.isFinite(plan.totals.perPeriod)
-    ? roundCurrency(plan.totals.perPeriod)
-    : null;
-  const adjustedPerPeriodValue = Number.isFinite(adjustedScenario.perPeriod)
-    ? roundCurrency(adjustedScenario.perPeriod)
-    : null;
-
-  const toPerPeriodLabel = (value: number | null) => {
-    if (value == null) {
-      return "—";
-    }
-
-    const suffix = periodLabel === "month" ? "mo" : "yr";
-    return `${formatCurrency(value)} / ${suffix}`;
-  };
-
-  const basePerPeriodLabel = toPerPeriodLabel(basePerPeriodValue);
-  const adjustedPerPeriodLabel = isInfeasible ? "—" : toPerPeriodLabel(adjustedPerPeriodValue);
-
-  const baseDurationLabel = formatHorizon({
-    years: plan.horizon.years,
-    months: plan.horizon.months,
-  });
-  const adjustedDurationLabel = formatHorizon({
-    years: adjustedScenario.years,
-    months: adjustedScenario.months,
-  });
-
-  const offsetLabel = timelineOffsetMonths === 0
-    ? "On schedule"
-    : `${timelineOffsetMonths > 0 ? "+" : "−"}${formatHorizon({ totalMonths: Math.abs(timelineOffsetMonths) })}`;
-
-  const firstUpdateRef = useRef(true);
-  const lastFeasibleRef = useRef<boolean | null>(null);
-  const lastPerPeriodRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (firstUpdateRef.current) {
-      firstUpdateRef.current = false;
-      lastFeasibleRef.current = !isInfeasible;
-      lastPerPeriodRef.current = adjustedPerPeriodValue ?? null;
-      return;
-    }
-
-    if (isInfeasible) {
-      if (lastFeasibleRef.current !== false) {
-        publish({
-          title: "Adjustment needs changes",
-          description: "This combination can’t reach the target. Try easing the date or return.",
-          variant: "error",
-        });
-      }
-      lastFeasibleRef.current = false;
-      lastPerPeriodRef.current = null;
-      return;
-    }
-
-    if (adjustedPerPeriodValue != null && adjustedPerPeriodValue !== lastPerPeriodRef.current) {
-      publish({
-        title: "Comparison updated",
-        description: `${formatCurrency(adjustedPerPeriodValue)} per ${periodLabel} required under this tweak.`,
-        variant: "success",
-      });
-      lastPerPeriodRef.current = adjustedPerPeriodValue;
-    }
-
-    lastFeasibleRef.current = true;
-  }, [adjustedPerPeriodValue, formatCurrency, isInfeasible, periodLabel, publish]);
-
-  const handleReset = () => {
-    setRatePercent(baseScenario.ratePercent);
-    setTimelineOffsetMonths(0);
-    lastFeasibleRef.current = null;
-    lastPerPeriodRef.current = null;
-    void onReset();
-  };
-
-  return (
-    <motion.section
-      layout
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      aria-labelledby="quick-tweaks-title"
-      className="space-y-6"
-    >
-      <Card className="rounded-2xl border border-border/50 bg-white p-6 shadow-sm">
-        <div className="space-y-6">
-          <header className="space-y-2">
-            <p
-              id="quick-tweaks-title"
-              className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground"
-            >
-              Compare with Quick Tweaks
-            </p>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Adjust assumptions in real time
-            </h2>
-          </header>
-
-          <div className="space-y-6" aria-live="polite">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label htmlFor="quick-tweaks-rate" className="text-sm font-medium text-muted-foreground">
-                  Expected return (% per year)
-                </label>
-                <span className="text-sm font-semibold text-slate-900">{adjustedReturnLabel}</span>
-              </div>
-              <input
-                id="quick-tweaks-rate"
-                type="range"
-                min={0}
-                max={20}
-                step={0.5}
-                value={ratePercent}
-                onChange={(event) => setRatePercent(Number(event.target.value))}
-                className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
-                aria-describedby="quick-tweaks-rate-hint"
-              />
-              <div id="quick-tweaks-rate-hint" className="flex justify-between text-xs text-muted-foreground">
-                <span>0%</span>
-                <span>20%</span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-              <div className="flex items-center justify-between">
-                <label htmlFor="quick-tweaks-timeline" className="text-sm font-medium text-muted-foreground">
-                  Target date offset
-                </label>
-                <span className="text-sm font-semibold text-slate-900">{offsetLabel}</span>
-              </div>
-              <input
-                id="quick-tweaks-timeline"
-                type="range"
-                min={minAdjustment}
-                max={maxAdjustment}
-                step={3}
-                value={timelineOffsetMonths}
-                onChange={(event) => setTimelineOffsetMonths(Number(event.target.value))}
-                className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
-                aria-describedby="quick-tweaks-timeline-hint"
-              />
-              <div id="quick-tweaks-timeline-hint" className="flex justify-between text-xs text-muted-foreground">
-                <span>−3 yrs</span>
-                <span>On track</span>
-                <span>+3 yrs</span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-              <div className="overflow-hidden rounded-xl border border-border/50">
-                <table className="min-w-full table-fixed">
-                  <thead className="bg-slate-50">
-                    <tr className="text-left text-sm font-medium text-muted-foreground">
-                      <th scope="col" className="px-4 py-3 font-medium">Setting</th>
-                      <th scope="col" className="px-4 py-3 font-medium">Original</th>
-                      <th scope="col" className="px-4 py-3 font-medium">Adjusted</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50 text-sm">
-                    <tr className="text-slate-900">
-                      <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">
-                        Expected return
-                      </th>
-                      <td className="px-4 py-3 text-lg font-semibold text-primary">{baseReturnLabel}</td>
-                      <td className="px-4 py-3 text-lg font-semibold text-primary">{adjustedReturnLabel}</td>
-                    </tr>
-                    <tr className="text-slate-900">
-                      <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">Duration</th>
-                      <td className="px-4 py-3 text-lg font-semibold text-primary">{baseDurationLabel}</td>
-                      <td className="px-4 py-3 text-lg font-semibold text-primary">{adjustedDurationLabel}</td>
-                    </tr>
-                    <tr className="text-slate-900">
-                      <th scope="row" className="px-4 py-3 text-left font-medium text-muted-foreground">
-                        Required investment
-                      </th>
-                      <td className="px-4 py-3 text-lg font-semibold text-primary">{basePerPeriodLabel}</td>
-                      <td className="px-4 py-3 text-lg font-semibold text-primary">{adjustedPerPeriodLabel}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <Button type="button" variant="secondary" onClick={handleReset} disabled={isResetting}>
-                {isResetting ? "Resetting…" : "Reset to original"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
-    </motion.section>
   );
 };
 
@@ -2216,8 +1863,6 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     currency: plan?.goal.currency,
   });
 
-  const baseScenario = useMemo(() => (plan ? calculateScenario(plan) : null), [plan]);
-
   if (isLoading) {
     return (
       <div className="space-y-10" aria-busy="true">
@@ -2251,7 +1896,7 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     );
   }
 
-  if (!plan || !baseScenario) {
+  if (!plan) {
     return (
       <div className="space-y-6">
         <header className="space-y-3">
@@ -2333,15 +1978,6 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
         />
       ) : null}
 
-      <ScenarioCompare
-        plan={plan}
-        baseScenario={baseScenario}
-        formatCurrency={formatCurrency}
-        formatPercent={formatPercent}
-        formatHorizon={formatHorizon}
-        onReset={() => loadPlan({ silent: true })}
-        isResetting={isRefreshing}
-      />
     </div>
   );
 }

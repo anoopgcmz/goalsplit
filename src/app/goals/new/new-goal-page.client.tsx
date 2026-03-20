@@ -316,12 +316,12 @@ export default function NewGoalPage(): JSX.Element {
             </Card>
           </section>
 
-          <section aria-labelledby="quick-tweaks-heading">
+          <section aria-labelledby="assumptions-heading">
             <Card>
               <CardHeader className="space-y-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Compare with Quick Tweaks</p>
-                  <h2 id="quick-tweaks-heading" className="text-xl font-semibold text-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Assumptions</p>
+                  <h2 id="assumptions-heading" className="text-xl font-semibold text-slate-900">
                     Adjust assumptions in real time
                   </h2>
                 </div>
