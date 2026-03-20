@@ -48,6 +48,78 @@ export function otpEmailTemplate(code: string): { subject: string; html: string;
   return { subject, html, text };
 }
 
+interface CheckInEmailOptions {
+  memberName: string | null;
+  goalTitle: string;
+  amountPerPeriod: string;
+  confirmUrl: string;
+  skipUrl: string;
+}
+
+export function checkinEmailTemplate(options: CheckInEmailOptions): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { memberName, goalTitle, amountPerPeriod, confirmUrl, skipUrl } = options;
+  const nameDisplay = memberName ?? 'Hi there';
+  const subject = `Did you contribute to "${goalTitle}" this month?`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="480" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="text-align: center; padding-bottom: 24px;">
+              <h1 style="color: #1a1a1a; font-size: 24px; margin: 0;">GoalSplit</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #333333; font-size: 16px; line-height: 1.6; padding-bottom: 16px;">
+              <p style="margin: 0;">Hi ${nameDisplay},</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #333333; font-size: 16px; line-height: 1.6; padding-bottom: 8px;">
+              <p style="margin: 0;">Your group is saving toward <strong>&ldquo;${goalTitle}&rdquo;</strong>.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #333333; font-size: 16px; line-height: 1.6; padding-bottom: 24px;">
+              <p style="margin: 0;">Your share this month: <strong>${amountPerPeriod}</strong></p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-bottom: 12px;">
+              <a href="${confirmUrl}" style="background-color: #16a34a; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 16px; font-weight: bold; display: inline-block;">&#10003; Yes, I contributed</a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-bottom: 24px;">
+              <a href="${skipUrl}" style="background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-size: 16px; font-weight: bold; display: inline-block;">&#10007; Not yet</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="border-top: 1px solid #eeeeee; padding-top: 20px; color: #999999; font-size: 12px; text-align: center;">
+              You are receiving this because you are a member of a shared savings goal on GoalSplit.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `Hi ${nameDisplay},\n\nYour group is saving toward "${goalTitle}". Your share this month: ${amountPerPeriod}.\n\nYes, I contributed: ${confirmUrl}\n\nNot yet: ${skipUrl}\n\nYou are receiving this because you are a member of a shared savings goal on GoalSplit.`;
+
+  return { subject, html, text };
+}
+
 interface InviteEmailOptions {
   inviterName: string | null;
   goalTitle: string;
