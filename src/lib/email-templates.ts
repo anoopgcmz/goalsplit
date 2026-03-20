@@ -188,3 +188,111 @@ export function inviteEmailTemplate(options: InviteEmailOptions): {
 
   return { subject, html, text };
 }
+
+export interface DigestGoalSummary {
+  title: string;
+  confirmedCount: number;
+  pendingCount: number;
+  skippedCount: number;
+  totalMembers: number;
+  userContributionAmount: number | null;
+  userContributionTarget: string | null;
+}
+
+interface DigestEmailOptions {
+  userName: string | null;
+  goals: DigestGoalSummary[];
+  appUrl: string;
+}
+
+export function digestEmailTemplate(options: DigestEmailOptions): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const { userName, goals, appUrl } = options;
+  const nameDisplay = userName ?? 'Hi there';
+  const subject = 'Your shared goals this week \u2014 GoalSplit';
+
+  const goalsHtml = goals
+    .map((goal) => {
+      const contributionLine =
+        goal.userContributionAmount != null && goal.userContributionTarget != null
+          ? `<p style="margin: 4px 0 0; color: #555555; font-size: 14px;">Your contribution: ${goal.userContributionAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })} / ${goal.userContributionTarget}</p>`
+          : `<p style="margin: 4px 0 0; color: #888888; font-size: 14px;">Your contribution: Not logged yet</p>`;
+
+      return `<tr>
+        <td style="padding: 16px 0; border-bottom: 1px solid #eeeeee;">
+          <p style="margin: 0 0 6px; font-size: 16px; font-weight: bold; color: #1a1a1a;">${goal.title}</p>
+          <p style="margin: 0; font-size: 14px; color: #555555;">
+            \u2705 ${goal.confirmedCount} member${goal.confirmedCount !== 1 ? 's' : ''} on track &nbsp;&middot;&nbsp;
+            \u23f3 ${goal.pendingCount} pending &nbsp;&middot;&nbsp;
+            \u274c ${goal.skippedCount} behind
+          </p>
+          ${contributionLine}
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="480" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="text-align: center; padding-bottom: 24px;">
+              <h1 style="color: #1a1a1a; font-size: 24px; margin: 0;">GoalSplit</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #333333; font-size: 16px; line-height: 1.6; padding-bottom: 8px;">
+              <p style="margin: 0;">Hi ${nameDisplay},</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #555555; font-size: 15px; line-height: 1.6; padding-bottom: 24px;">
+              <p style="margin: 0;">Here&rsquo;s how your groups are tracking this month:</p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${goalsHtml}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding: 28px 0 16px;">
+              <a href="${appUrl}" style="background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: bold; display: inline-block;">View all goals &rarr;</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="border-top: 1px solid #eeeeee; padding-top: 20px; color: #999999; font-size: 13px; text-align: center;">
+              Keep going &mdash; every contribution counts. GoalSplit
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const goalsText = goals
+    .map((goal) => {
+      const contributionLine =
+        goal.userContributionAmount != null && goal.userContributionTarget != null
+          ? `Your contribution: ${goal.userContributionAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })} / ${goal.userContributionTarget}`
+          : 'Your contribution: Not logged yet';
+      return `${goal.title}\n  \u2705 ${goal.confirmedCount} on track  \u23f3 ${goal.pendingCount} pending  \u274c ${goal.skippedCount} behind\n  ${contributionLine}`;
+    })
+    .join('\n\n');
+
+  const text = `Hi ${nameDisplay},\n\nHere's how your groups are tracking this month:\n\n${goalsText}\n\nView all goals: ${appUrl}\n\nKeep going — every contribution counts.\nGoalSplit`;
+
+  return { subject, html, text };
+}
