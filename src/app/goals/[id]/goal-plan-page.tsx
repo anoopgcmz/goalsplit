@@ -1515,27 +1515,16 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       const payload = await sendGoalInvite(goalId, parsedInput);
 
       const inviteeDisplay = parsedInput.email;
-      const successMessage =
-        payload?.inviteUrl != null
-          ? `✅ Invitation sent to ${inviteeDisplay}. They'll be notified inside the app.\nShare this link if needed:\n${payload.inviteUrl}`
-          : `✅ Invitation sent to ${inviteeDisplay}. They'll be notified inside the app.`;
 
-      setInviteStatus("success");
-      setInviteMessage(successMessage);
-      setInviteErrors({});
-      setInviteEmail("");
-      setInviteSplit(getInviteDefaultSplit());
-      setInviteFixed("");
-      setInviteNote("");
+      closeInvite();
       publish({
         title: "Invitation sent",
         description:
           payload?.inviteUrl != null
-            ? `We let ${inviteeDisplay} know inside the app. Share the link if needed.`
-            : `We let ${inviteeDisplay} know inside the app.`,
+            ? `Invite email sent to ${inviteeDisplay}. Share this link if needed: ${payload.inviteUrl}`
+            : `Invite email sent to ${inviteeDisplay}. They'll see it in their notifications.`,
         variant: "success",
       });
-      focusInviteEmailField();
     } catch (error) {
       if (error instanceof HttpApiError) {
         if (error.status === 422) {
