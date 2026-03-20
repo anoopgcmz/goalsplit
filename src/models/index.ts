@@ -5,3 +5,4 @@ export * from './goal';
 export * from './invite';
 export * from './contribution';
 export * from './analytics-event';
+export * from './checkin';
