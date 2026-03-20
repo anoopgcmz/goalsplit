@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useToast } from "@/components/ui/toast";
+import { GroupProgress } from "@/components/group-progress";
 import type { AuthUser } from "@/app/api/auth/schemas";
 import {
   CreateGoalInviteInputSchema,
@@ -2319,6 +2320,10 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
       <PlanWarnings warnings={plan.warnings} />
 
       <PlanSummaryCard plan={plan} formatCurrency={formatCurrency} formatPercent={formatPercent} />
+
+      {plan.goal.isShared ? (
+        <GroupProgress goalId={goalId} currency={plan.goal.currency} />
+      ) : null}
 
       <SharedContributions
         plan={plan}
