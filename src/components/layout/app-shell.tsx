@@ -15,6 +15,7 @@ const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
   { href: "/goals/new", label: "New goal" },
+  { href: "/goals/ai", label: "AI Generate" },
 ];
 
 interface AppShellProps {
