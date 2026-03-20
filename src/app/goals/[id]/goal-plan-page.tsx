@@ -1859,7 +1859,7 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     return () => controller.abort();
   }, [initialUser]);
 
-  const { formatCurrency, formatPercent, formatHorizon, formatDate } = useFormatters({
+  const { formatCurrency, formatPercent, formatHorizon: _formatHorizon, formatDate } = useFormatters({
     currency: plan?.goal.currency,
   });
 

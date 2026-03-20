@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -25,6 +24,20 @@ import {
 } from "@/features/goals/goal-form";
 import { createGoal } from "@/lib/api/goals";
 import { ApiError as HttpApiError } from "@/lib/http";
+import {
+  yearFractionFromDates,
+  netTargetAfterExisting,
+  requiredPaymentForFutureValue,
+  type CompoundingFrequency,
+} from "@/lib/financial";
+
+function formatCurrency(amount: number, currency: string): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 
 export default function NewGoalPage(): JSX.Element {
   const router = useRouter();
@@ -91,6 +104,29 @@ export default function NewGoalPage(): JSX.Element {
     setState((prev) => ({ ...prev, expectedReturn: value }));
     setTouched((prev) => ({ ...prev, expectedReturn: true }));
   };
+
+  const investmentProjection = useMemo(() => {
+    const targetAmount = parseFloat(state.targetAmount);
+    const rate = parseFloat(state.expectedReturn);
+    const existing = parseFloat(state.existingSavings || "0") || 0;
+
+    if (!state.targetDate || isNaN(targetAmount) || targetAmount <= 0 || isNaN(rate) || rate < 0) {
+      return null;
+    }
+
+    const now = new Date();
+    const targetDate = new Date(state.targetDate);
+    const tYears = yearFractionFromDates(now, targetDate);
+
+    if (tYears <= 0) return null;
+
+    const compoundN: CompoundingFrequency = state.compounding === "monthly" ? 12 : 1;
+    const contribN: CompoundingFrequency = state.contributionFrequency === "monthly" ? 12 : 1;
+    const netTarget = netTargetAfterExisting(targetAmount, existing, rate, compoundN, tYears);
+    const payment = requiredPaymentForFutureValue(netTarget, rate, contribN, tYears);
+
+    return { payment: isFinite(payment) && payment > 0 ? payment : null, tYears };
+  }, [state.targetAmount, state.expectedReturn, state.existingSavings, state.targetDate, state.compounding, state.contributionFrequency]);
 
   const isComplete =
     state.title.trim().length > 0 &&
@@ -276,70 +312,95 @@ export default function NewGoalPage(): JSX.Element {
                     ) : null}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </section>
 
-          <section aria-labelledby="timeframe-heading">
-            <Card>
-              <CardHeader className="space-y-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Timeframe</p>
-                  <h2 id="timeframe-heading" className="text-xl font-semibold text-slate-900">
-                    When will you need the money?
-                  </h2>
-                </div>
-                <p className="text-sm text-slate-600">Pick a target date to align your investment schedule.</p>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Label htmlFor="target-date">Target date</Label>
-                <Input
-                  id="target-date"
-                  name="targetDate"
-                  type="date"
-                  value={state.targetDate}
-                  onChange={handleChange("targetDate")}
-                  onBlur={handleBlur("targetDate")}
-                  aria-invalid={showError("targetDate")}
-                  aria-describedby={showError("targetDate") ? "target-date-error target-date-helper" : "target-date-helper"}
-                  required
-                />
-                <p id="target-date-helper" className="text-sm text-slate-500">
-                  Pick when you&apos;ll need the money.
-                </p>
-                {showError("targetDate") ? (
-                  <p id="target-date-error" className="text-sm text-red-600" aria-live="polite">
-                    {errors.targetDate}
+                <div className="space-y-2">
+                  <Label htmlFor="target-date">Target date</Label>
+                  <Input
+                    id="target-date"
+                    name="targetDate"
+                    type="date"
+                    value={state.targetDate}
+                    onChange={handleChange("targetDate")}
+                    onBlur={handleBlur("targetDate")}
+                    aria-invalid={showError("targetDate")}
+                    aria-describedby={showError("targetDate") ? "target-date-error target-date-helper" : "target-date-helper"}
+                    required
+                  />
+                  <p id="target-date-helper" className="text-sm text-slate-500">
+                    Pick when you&apos;ll need the money.
                   </p>
-                ) : null}
+                  {showError("targetDate") ? (
+                    <p id="target-date-error" className="text-sm text-red-600" aria-live="polite">
+                      {errors.targetDate}
+                    </p>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           </section>
 
-          <section aria-labelledby="assumptions-heading">
+          <section aria-labelledby="investment-heading">
             <Card>
               <CardHeader className="space-y-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Assumptions</p>
-                  <h2 id="assumptions-heading" className="text-xl font-semibold text-slate-900">
-                    Adjust assumptions in real time
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Investment projection</p>
+                  <h2 id="investment-heading" className="text-xl font-semibold text-slate-900">
+                    Adjust your savings plan
                   </h2>
                 </div>
                 <p className="text-sm text-slate-600">
-                  Set expectations for returns and how frequently you&apos;ll contribute. These guide the projections we show later.
+                  Drag the slider to explore how your return rate affects the contribution needed. Fill in the goal basics above to see live numbers.
                 </p>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Live result box */}
+                <div className="rounded-xl border border-primary-200 bg-gradient-to-br from-primary-50 to-primary-100 p-5 text-center">
+                  {investmentProjection?.payment != null ? (
+                    <>
+                      <p className="text-sm font-medium capitalize text-primary-700">
+                        {state.contributionFrequency} contribution needed
+                      </p>
+                      <p className="mt-1 text-4xl font-bold text-primary-900">
+                        {formatCurrency(investmentProjection.payment, state.currency)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        over {investmentProjection.tYears.toFixed(1)} years &middot; {state.expectedReturn}% annual return
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      Fill in the goal amount and target date above to see your required contribution.
+                    </p>
+                  )}
+                </div>
+
+                {/* Return rate slider */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <div className="flex items-center justify-between">
                     <Label htmlFor="expected-return" className="text-sm font-medium text-slate-700">
-                      Expected annual return %
+                      Expected annual return
                     </Label>
-                    <InfoTooltip
-                      id="expected-return-tooltip"
-                      content="Try 6–10% to compare scenarios."
-                      label="Learn how to pick an expected return"
-                    />
+                    <span className="text-sm font-semibold text-primary-700">{state.expectedReturn}%</span>
+                  </div>
+                  <input
+                    id="expected-return"
+                    type="range"
+                    min={0}
+                    max={20}
+                    step={0.5}
+                    value={state.expectedReturn === "" ? 0 : Number(state.expectedReturn)}
+                    onChange={(event) => {
+                      setState((prev) => ({ ...prev, expectedReturn: event.target.value }));
+                      setTouched((prev) => ({ ...prev, expectedReturn: true }));
+                    }}
+                    onBlur={handleBlur("expectedReturn")}
+                    aria-invalid={showError("expectedReturn")}
+                    className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
+                    aria-label="Expected annual return slider"
+                  />
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>0%</span>
+                    <span>20%</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {RETURN_PRESETS.map((preset) => {
@@ -361,39 +422,6 @@ export default function NewGoalPage(): JSX.Element {
                       );
                     })}
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={20}
-                    step={0.5}
-                    value={state.expectedReturn === "" ? 0 : Number(state.expectedReturn)}
-                    onChange={(event) => {
-                      setState((prev) => ({ ...prev, expectedReturn: event.target.value }));
-                      setTouched((prev) => ({ ...prev, expectedReturn: true }));
-                    }}
-                    className="h-2 w-full cursor-pointer rounded-full bg-slate-200 accent-primary-600"
-                    aria-label="Expected annual return slider"
-                    aria-describedby="expected-return-hint"
-                  />
-                  <div id="expected-return-hint" className="flex justify-between text-xs text-slate-500">
-                    <span>0%</span>
-                    <span>20%</span>
-                  </div>
-                  <Input
-                    id="expected-return"
-                    name="expectedReturn"
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={state.expectedReturn}
-                    onChange={handleChange("expectedReturn")}
-                    onBlur={handleBlur("expectedReturn")}
-                    aria-invalid={showError("expectedReturn")}
-                    aria-describedby={showError("expectedReturn") ? "expected-return-error expected-return-hint" : "expected-return-hint"}
-                    required
-                  />
                   {showError("expectedReturn") ? (
                     <p id="expected-return-error" className="text-sm text-red-600" aria-live="polite">
                       {errors.expectedReturn}
@@ -401,77 +429,50 @@ export default function NewGoalPage(): JSX.Element {
                   ) : null}
                 </div>
 
-                <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium text-slate-700">
-                    <span className="flex items-center gap-2">
-                      Compounding
-                      <InfoTooltip
-                        id="compounding-tooltip"
-                        content="How often returns are added to your balance."
-                        label="Learn about compounding"
-                      />
-                    </span>
-                  </legend>
-                  <p className="text-sm text-slate-500">Pick how often returns are added to your balance.</p>
-                  <div className="flex flex-wrap gap-3">
-                    {(["monthly", "yearly"] as Compounding[]).map((option) => {
-                      const isChecked = state.compounding === option;
-                      return (
-                        <label
+                {/* Compounding + Contribution frequency toggles */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Compounding</Label>
+                    <div className="flex gap-2">
+                      {(["monthly", "yearly"] as Compounding[]).map((option) => (
+                        <button
                           key={option}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-primary-400 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500"
+                          type="button"
+                          onClick={() => handleRadioChange("compounding", option)}
+                          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                            state.compounding === option
+                              ? "border-primary-500 bg-primary-50 text-primary-700"
+                              : "border-slate-300 bg-white text-slate-600 hover:border-primary-400"
+                          }`}
+                          aria-pressed={state.compounding === option}
                         >
-                          <input
-                            type="radio"
-                            name="compounding"
-                            value={option}
-                            checked={isChecked}
-                            onChange={() => handleRadioChange("compounding", option)}
-                            onBlur={handleBlur("compounding")}
-                            className="h-4 w-4 border-slate-300 text-primary-600 focus:ring-primary-500"
-                          />
                           <span className="capitalize">{option}</span>
-                        </label>
-                      );
-                    })}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </fieldset>
 
-                <fieldset className="space-y-2">
-                  <legend className="text-sm font-medium text-slate-700">
-                    <span className="flex items-center gap-2">
-                      Contribution frequency
-                      <InfoTooltip
-                        id="contribution-frequency-tooltip"
-                        content="How often you’ll invest (monthly/yearly)."
-                        label="Learn about contribution frequency"
-                      />
-                    </span>
-                  </legend>
-                  <p className="text-sm text-slate-500">Decide if you’ll invest monthly or once a year.</p>
-                  <div className="flex flex-wrap gap-3">
-                    {(["monthly", "yearly"] as ContributionFrequency[]).map((option) => {
-                      const isChecked = state.contributionFrequency === option;
-                      return (
-                        <label
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Contribute</Label>
+                    <div className="flex gap-2">
+                      {(["monthly", "yearly"] as ContributionFrequency[]).map((option) => (
+                        <button
                           key={option}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-primary-400 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500"
+                          type="button"
+                          onClick={() => handleRadioChange("contributionFrequency", option)}
+                          className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                            state.contributionFrequency === option
+                              ? "border-primary-500 bg-primary-50 text-primary-700"
+                              : "border-slate-300 bg-white text-slate-600 hover:border-primary-400"
+                          }`}
+                          aria-pressed={state.contributionFrequency === option}
                         >
-                          <input
-                            type="radio"
-                            name="contributionFrequency"
-                            value={option}
-                            checked={isChecked}
-                            onChange={() => handleRadioChange("contributionFrequency", option)}
-                            onBlur={handleBlur("contributionFrequency")}
-                            className="h-4 w-4 border-slate-300 text-primary-600 focus:ring-primary-500"
-                          />
                           <span className="capitalize">{option}</span>
-                        </label>
-                      );
-                    })}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </fieldset>
+                </div>
               </CardContent>
             </Card>
           </section>

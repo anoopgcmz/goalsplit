@@ -25,7 +25,7 @@ import {
 import { createGoal } from "@/lib/api/goals";
 import { requiredPaymentForFutureValue, yearFractionFromDates } from "@/lib/financial";
 import { ApiError as HttpApiError } from "@/lib/http";
-import type { AiParseResponse } from "@/app/api/goals/ai-parse/route";
+import type { AiParseResponse } from "@/app/api/goals/ai-parse/schema";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -646,7 +646,7 @@ export default function AiGoalPage(): JSX.Element {
                   </h2>
                 </div>
                 <p className="text-sm text-slate-600">
-                  Include your group's combined existing savings for this goal, if any.
+                  Include your group&apos;s combined existing savings for this goal, if any.
                 </p>
               </CardHeader>
               <CardContent className="space-y-2">
