@@ -292,6 +292,9 @@ export async function apiFetch<T>(path: string, init: ApiFetchInit<T> = {}): Pro
   try {
     response = await fetch(url, requestInit);
   } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      throw error;
+    }
     throw new ApiError(0, NETWORK_ERROR_MESSAGE, error);
   }
 
