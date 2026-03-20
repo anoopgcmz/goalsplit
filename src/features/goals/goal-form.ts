@@ -14,6 +14,16 @@ export const currencies = [
   { label: "British Pound (GBP)", value: "GBP" },
 ];
 
+export function detectDefaultCurrency(): string {
+  if (typeof navigator === "undefined") return "INR";
+  const lang = navigator.language;
+  if (lang === "en-IN" || lang.startsWith("hi")) return "INR";
+  if (lang === "en-US") return "USD";
+  if (lang === "en-GB") return "GBP";
+  if (/^(de|fr|es|it|nl|pt)/.test(lang)) return "EUR";
+  return "INR";
+}
+
 export type Compounding = "monthly" | "yearly";
 export type ContributionFrequency = "monthly" | "yearly";
 
