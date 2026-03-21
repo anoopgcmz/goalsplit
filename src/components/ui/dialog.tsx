@@ -84,7 +84,7 @@ export function Dialog(props: DialogProps): JSX.Element | null {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-8"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
@@ -100,7 +100,7 @@ export function Dialog(props: DialogProps): JSX.Element | null {
         aria-describedby={description ? "dialog-description" : undefined}
         tabIndex={-1}
         className={cn(
-          "w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-lg focus:outline-none",
+          "w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-elevated focus:outline-none",
         )}
       >
         <div className="flex items-start justify-between gap-4">

@@ -38,8 +38,8 @@ interface ToastContextValue {
 }
 
 const variantStyles: Record<ToastVariant, string> = {
-  success: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  error: "border-rose-200 bg-rose-50 text-rose-900",
+  success: "border-primary-200 bg-primary-50 text-primary-900",
+  error: "border-danger-200 bg-danger-bg text-danger-900",
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -88,7 +88,7 @@ export function Toast(props: ToastProps): JSX.Element | null {
       role={role}
       aria-live={ariaLive}
       className={cn(
-        "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border px-4 py-3 shadow-md",
+        "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border px-4 py-3 shadow-card",
         variantStyles[variant],
         className,
       )}

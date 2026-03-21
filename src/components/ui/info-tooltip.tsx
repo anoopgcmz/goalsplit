@@ -82,7 +82,7 @@ export function InfoTooltip(props: InfoTooltipProps): JSX.Element {
         aria-controls={tooltipId}
         aria-label={label}
         aria-describedby={isOpen ? tooltipId : undefined}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary-100 text-[11px] font-semibold text-primary-700 transition hover:bg-primary-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
       >
         <span aria-hidden="true">?</span>
       </button>
@@ -91,7 +91,7 @@ export function InfoTooltip(props: InfoTooltipProps): JSX.Element {
         id={tooltipId}
         aria-hidden={!isOpen}
         className={cn(
-          "absolute left-1/2 top-full z-10 mt-2 w-56 -translate-x-1/2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white shadow-lg transition-opacity",
+          "absolute left-1/2 top-full z-10 mt-2 w-56 -translate-x-1/2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white shadow-elevated transition-opacity",
           isOpen ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >

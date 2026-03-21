@@ -316,7 +316,7 @@ export default function AiGoalPage(): JSX.Element {
             aria-label="Describe your savings goal"
           />
           {parseError ? (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-danger" role="alert">
               {parseError}
             </p>
           ) : null}
@@ -445,7 +445,7 @@ export default function AiGoalPage(): JSX.Element {
                     required
                   />
                   {showError("title") ? (
-                    <p className="text-sm text-red-600" aria-live="polite">{errors.title}</p>
+                    <p className="text-sm text-danger" aria-live="polite">{errors.title}</p>
                   ) : null}
                 </div>
 
@@ -465,7 +465,7 @@ export default function AiGoalPage(): JSX.Element {
                       required
                     />
                     {showError("targetAmount") ? (
-                      <p className="text-sm text-red-600" aria-live="polite">{errors.targetAmount}</p>
+                      <p className="text-sm text-danger" aria-live="polite">{errors.targetAmount}</p>
                     ) : null}
                   </div>
                   <div className="space-y-2">
@@ -495,7 +495,7 @@ export default function AiGoalPage(): JSX.Element {
                     required
                   />
                   {showError("targetDate") ? (
-                    <p className="text-sm text-red-600" aria-live="polite">{errors.targetDate}</p>
+                    <p className="text-sm text-danger" aria-live="polite">{errors.targetDate}</p>
                   ) : null}
                 </div>
               </CardContent>
@@ -564,7 +564,7 @@ export default function AiGoalPage(): JSX.Element {
                     required
                   />
                   {showError("expectedReturn") ? (
-                    <p className="text-sm text-red-600" aria-live="polite">{errors.expectedReturn}</p>
+                    <p className="text-sm text-danger" aria-live="polite">{errors.expectedReturn}</p>
                   ) : null}
                 </div>
 
@@ -663,7 +663,7 @@ export default function AiGoalPage(): JSX.Element {
                   aria-invalid={showError("existingSavings")}
                 />
                 {showError("existingSavings") ? (
-                  <p className="text-sm text-red-600" aria-live="polite">{errors.existingSavings}</p>
+                  <p className="text-sm text-danger" aria-live="polite">{errors.existingSavings}</p>
                 ) : null}
               </CardContent>
               <CardFooter className="flex flex-wrap items-center justify-between gap-3">

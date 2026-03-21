@@ -18,13 +18,13 @@ export function TableSkeleton(props: TableSkeletonProps): JSX.Element {
 
   return (
     <div
-      className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-md", className)}
+      className={cn("overflow-hidden rounded-2xl border border-border shadow-card", className)}
       {...rest}
     >
-      <table className="min-w-full border-separate border-spacing-0 bg-white text-left">
+      <table className="min-w-full border-separate border-spacing-0 bg-surface text-left">
         {includeHeader ? (
-          <thead className="bg-slate-50">
-            <tr className="divide-x divide-slate-100/60">
+          <thead className="bg-surface-alt">
+            <tr className="divide-x divide-border/60">
               {Array.from({ length: columns }).map((_, index) => (
                 <th key={`header-${index}`} className="px-4 py-3">
                   <Skeleton className="h-3 w-3/5" />
@@ -33,9 +33,9 @@ export function TableSkeleton(props: TableSkeletonProps): JSX.Element {
             </tr>
           </thead>
         ) : null}
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border">
           {Array.from({ length: rows }).map((_, rowIndex) => (
-            <tr key={`row-${rowIndex}`} className="divide-x divide-slate-100/60">
+            <tr key={`row-${rowIndex}`} className="divide-x divide-border/60">
               {Array.from({ length: columns }).map((_, columnIndex) => (
                 <td key={`cell-${rowIndex}-${columnIndex}`} className="px-4 py-3">
                   <Skeleton className="h-3 w-full" />

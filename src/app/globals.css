@@ -5,6 +5,84 @@
 @layer base {
   :root {
     color-scheme: light;
+
+    /* ── PRIMARY (Emerald) ─────────────────────────────────── */
+    --color-primary-50:  #ECFDF5;
+    --color-primary-100: #D1FAE5;
+    --color-primary-200: #A7F3D0;
+    --color-primary-300: #6EE7B7;
+    --color-primary-400: #34D399;
+    --color-primary-500: #10B981;
+    --color-primary-600: #059669;
+    --color-primary-700: #047857;
+    --color-primary-800: #065F46;
+    --color-primary-900: #064E3B;
+
+    /* ── SECONDARY (Sky Blue) ──────────────────────────────── */
+    --color-secondary-50:  #F0F9FF;
+    --color-secondary-100: #E0F2FE;
+    --color-secondary-200: #BAE6FD;
+    --color-secondary-300: #7DD3FC;
+    --color-secondary-400: #38BDF8;
+    --color-secondary-500: #0EA5E9;
+    --color-secondary-600: #0284C7;
+    --color-secondary-700: #0369A1;
+    --color-secondary-800: #075985;
+    --color-secondary-900: #0C4A6E;
+
+    /* ── ACCENT (Amber) ────────────────────────────────────── */
+    --color-accent-50:  #FFFBEB;
+    --color-accent-100: #FEF3C7;
+    --color-accent-200: #FDE68A;
+    --color-accent-300: #FCD34D;
+    --color-accent-400: #FBBF24;
+    --color-accent-500: #F59E0B;
+    --color-accent-600: #D97706;
+    --color-accent-700: #B45309;
+    --color-accent-800: #92400E;
+    --color-accent-900: #78350F;
+
+    /* ── NEUTRALS ──────────────────────────────────────────── */
+    --color-bg:           #F8FAFC;
+    --color-surface:      #FFFFFF;
+    --color-surface-alt:  #F1F5F9;
+    --color-border:       #E2E8F0;
+    --color-border-focus: #10B981;
+    --color-text-heading: #0F172A;
+    --color-text-body:    #1E293B;
+    --color-text-muted:   #64748B;
+    --color-text-subtle:  #94A3B8;
+    --color-text-inverse: #FFFFFF;
+
+    /* ── SEMANTIC STATES ───────────────────────────────────── */
+    --color-success:      #10B981;
+    --color-success-bg:   #ECFDF5;
+    --color-warning:      #F59E0B;
+    --color-warning-bg:   #FFFBEB;
+    --color-danger:       #EF4444;
+    --color-danger-bg:    #FEF2F2;
+    --color-danger-hover: #DC2626;
+    --color-info:         #0EA5E9;
+    --color-info-bg:      #F0F9FF;
+
+    /* ── FOCUS & INTERACTION ───────────────────────────────── */
+    --color-focus-ring:   rgba(16, 185, 129, 0.35);
+    --color-overlay:      rgba(15, 23, 42, 0.5);
+    --color-skeleton:     #E2E8F0;
+    --color-skeleton-end: #F1F5F9;
+
+    /* ── COMPONENT SHORTHANDS ──────────────────────────────── */
+    --btn-primary-bg:      var(--color-primary-500);
+    --btn-primary-hover:   var(--color-primary-600);
+    --btn-primary-text:    var(--color-text-inverse);
+    --btn-accent-bg:       var(--color-accent-500);
+    --btn-accent-hover:    var(--color-accent-600);
+    --btn-accent-text:     var(--color-text-inverse);
+    --btn-secondary-bg:    var(--color-secondary-500);
+    --btn-secondary-hover: var(--color-secondary-600);
+    --input-border:        var(--color-border);
+    --input-focus-border:  var(--color-primary-500);
+    --input-focus-ring:    var(--color-focus-ring);
   }
 
   html {
@@ -38,7 +116,7 @@
   }
 
   .text-muted-foreground {
-    @apply text-[#64748b];
+    @apply text-[#64748B];
   }
 
   .border-border\/50 {

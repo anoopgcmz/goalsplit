@@ -424,7 +424,7 @@ function SharedAcceptPageContent(): JSX.Element {
                   <span>Ready when you are.</span>
                 )}
                 {acceptError ? (
-                  <span className="text-rose-600" role="alert">
+                  <span className="text-danger" role="alert">
                     {acceptError}
                   </span>
                 ) : null}
