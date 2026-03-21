@@ -33,7 +33,7 @@ import {
 } from "@/lib/financial";
 
 function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-IN", {
+  return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency,
     maximumFractionDigits: 0,

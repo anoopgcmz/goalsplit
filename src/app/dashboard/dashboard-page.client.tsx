@@ -19,12 +19,6 @@ import { useToast } from "@/components/ui/toast";
 import { deleteGoal, type GoalSummary } from "@/lib/api/goals";
 import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
-
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -85,6 +79,7 @@ function GoalCard(props: GoalCardProps): JSX.Element {
     title,
     targetAmount,
     targetDate,
+    currency,
     contributionAmount,
     collaborative,
     progress,
@@ -95,6 +90,11 @@ function GoalCard(props: GoalCardProps): JSX.Element {
     isDeleting = false,
     canManage = true,
   } = props;
+  const currencyFormatter = useMemo(() => new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency ?? "USD",
+    maximumFractionDigits: 0,
+  }), [currency]);
   const relativeDue = getRelativeDueLabel(targetDate);
   const formattedTargetDate = dateFormatter.format(new Date(targetDate));
   const cappedProgress = Math.min(Math.max(progress, 0), 100);
@@ -395,6 +395,12 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
     () => goalList.reduce((sum, goal) => sum + goal.contributionAmount, 0),
     [goalList],
   );
+  const summaryCurrency = goalList[0]?.currency ?? "USD";
+  const summaryFormatter = useMemo(() => new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: summaryCurrency,
+    maximumFractionDigits: 0,
+  }), [summaryCurrency]);
   const nextDeadline = useMemo(() => getNextDeadline(goalList), [goalList]);
   const activeGoalCount = goalList.length;
 
@@ -485,7 +491,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-500">Total to save</p>
             <p className="text-3xl font-semibold text-slate-900">
-              {currencyFormatter.format(totalContributionAmount)}
+              {summaryFormatter.format(totalContributionAmount)}
             </p>
           </div>
           <div className="flex flex-col gap-1">

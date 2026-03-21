@@ -10,6 +10,7 @@ export interface GoalSummary {
   title: string;
   targetAmount: number;
   targetDate: string;
+  currency: string;
   contributionAmount: number;
   contributionLabel: string;
   collaborative: boolean;
@@ -89,6 +90,7 @@ export const buildGoalSummary = (
     title: goal.title,
     targetAmount: target,
     targetDate: goal.targetDate,
+    currency: goal.currency,
     contributionAmount,
     contributionLabel,
     collaborative: goal.isShared,
