@@ -10,6 +10,64 @@ import { ToastProvider } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { InvitationBell } from "@/features/invitations/invitation-bell";
+import type { GoalSummary } from "@/lib/api/goals";
+
+interface SidebarStats {
+  totalGoals: number;
+  nearestDeadline: { title: string; targetDate: string } | null;
+}
+
+function useSidebarStats(): { data: SidebarStats | null; loading: boolean } {
+  const [data, setData] = useState<SidebarStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const load = async () => {
+      try {
+        const res = await fetch("/api/goals?page=1&pageSize=50&sortBy=targetDate&sortOrder=asc", {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+        const json = (await res.json()) as { data: GoalSummary[] };
+        const goals: GoalSummary[] = json.data ?? [];
+        const today = new Date().toISOString().slice(0, 10);
+        const future = goals.filter((g) => g.targetDate >= today);
+        const nearest =
+          future.length > 0
+            ? future.reduce((a, b) => (a.targetDate <= b.targetDate ? a : b))
+            : goals.length > 0
+              ? goals.reduce((a, b) => (a.targetDate >= b.targetDate ? a : b))
+              : null;
+        setData({
+          totalGoals: goals.length,
+          nearestDeadline: nearest
+            ? { title: nearest.title, targetDate: nearest.targetDate }
+            : null,
+        });
+      } catch {
+        // fail silently — sidebar stats are non-critical
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+    return () => controller.abort();
+  }, []);
+
+  return { data, loading };
+}
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -29,6 +87,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
   const [navOpen, setNavOpen] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const { user, status, isLoading } = useCurrentUser();
+  const { data: sidebarStats, loading: sidebarStatsLoading } = useSidebarStats();
   const hideNavigation = pathname === "/login";
   const showNavigation = !hideNavigation;
 
@@ -317,6 +376,48 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   );
                 })}
               </ul>
+              {sidebarStatsLoading ? (
+                <div className="hidden md:flex flex-col gap-2 rounded-2xl bg-slate-50 px-4 py-4 animate-pulse">
+                  <div className="h-3 w-16 rounded bg-slate-100" />
+                  <div className="h-4 w-full rounded bg-slate-100" />
+                </div>
+              ) : sidebarStats !== null ? (
+                <div className="hidden md:block rounded-2xl bg-primary-50 px-4 py-4 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600 mb-3">
+                    Overview
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Active goals</span>
+                      <span className="font-semibold text-slate-800">{sidebarStats.totalGoals}</span>
+                    </div>
+                    {sidebarStats.nearestDeadline !== null && (
+                      <div className="flex flex-col gap-0.5 border-t border-primary-100 pt-2 mt-1">
+                        <span className="text-slate-500 text-xs">Next deadline</span>
+                        <span className="font-medium text-slate-800 truncate">{sidebarStats.nearestDeadline.title}</span>
+                        <span className="text-xs text-primary-600">
+                          {dateFormatter.format(new Date(sidebarStats.nearestDeadline.targetDate))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-auto hidden md:block border-t border-border pt-4">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-primary-50 hover:text-primary-600"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-500 text-xs font-bold text-white shrink-0">
+                    {userInitials}
+                  </span>
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="truncate max-w-[120px] text-slate-800 font-medium">{user?.name ?? "Account"}</span>
+                    <span className="text-xs text-slate-400">Log out</span>
+                  </div>
+                </button>
+              </div>
             </div>
           </nav>
         ) : null}
