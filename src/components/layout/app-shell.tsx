@@ -14,6 +14,7 @@ import { InvitationBell } from "@/features/invitations/invitation-bell";
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
+  { href: "/goals/ai", label: "AI Goal", isAI: true },
 ];
 
 interface AppShellProps {
@@ -154,9 +155,21 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   className="px-2 py-2 md:hidden"
                   aria-controls="primary-navigation"
                   aria-expanded={navOpen}
+                  aria-label={navOpen ? "Close menu" : "Open menu"}
                   onClick={() => setNavOpen((prev) => !prev)}
                 >
-                  {navOpen ? "Close" : "Menu"}
+                  {navOpen ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="3" y1="6" x2="21" y2="6" />
+                      <line x1="3" y1="12" x2="21" y2="12" />
+                      <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                  )}
                 </Button>
               ) : null}
               <Link
@@ -254,13 +267,16 @@ export function AppShell(props: AppShellProps): JSX.Element {
             <div className="flex h-full flex-col gap-6">
               <div className="flex items-center justify-between md:hidden">
                 <p className="text-sm font-semibold text-slate-600">Navigation</p>
-                <Button type="button" variant="ghost" onClick={() => setNavOpen(false)}>
-                  Close
+                <Button type="button" variant="ghost" aria-label="Close menu" onClick={() => setNavOpen(false)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
                 </Button>
               </div>
               <ul className="flex flex-col gap-2">
                 {navigationItems.map((item) => {
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || (item.href === "/goals/ai" && pathname.startsWith("/goals/ai"));
                   return (
                     <li key={item.href}>
                       <Link
@@ -273,7 +289,17 @@ export function AppShell(props: AppShellProps): JSX.Element {
                             : "text-slate-600 hover:bg-primary-50 hover:text-primary-600",
                         )}
                       >
-                        {item.label}
+                        {item.isAI ? (
+                          <>
+                            <span aria-hidden="true">✨</span>
+                            {item.label}
+                            <span className="ml-auto rounded-full bg-primary-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                              AI
+                            </span>
+                          </>
+                        ) : (
+                          item.label
+                        )}
                       </Link>
                     </li>
                   );
@@ -285,10 +311,10 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   variant="primary"
                   onClick={() => {
                     setNavOpen(false);
-                    router.push("/goals/new");
+                    router.push("/goals/ai");
                   }}
                 >
-                  + New goal
+                  ✨ New goal with AI
                 </Button>
               ) : null}
             </div>
