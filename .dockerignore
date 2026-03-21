@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (rebuilt inside the image)
+node_modules
+
+# Next.js build output (rebuilt inside the image)
+.next
+
+# Local environment secrets — never bake into image
+.env
+.env.*
+!.env.local.example
+
+# Dev/test artefacts
+coverage
+playwright-report
+test-results
+
+# Editor & OS noise
+.DS_Store
+*.log
+.vscode
+.idea

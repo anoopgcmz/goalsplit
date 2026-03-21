@@ -1,0 +1,45 @@
+services:
+  # ── Next.js application ─────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner          # use the final production stage
+    ports:
+      - "3000:3000"
+    environment:
+      # MongoDB — points to the local mongo service below
+      MONGODB_URI: mongodb://mongo:27017/
+      MONGODB_DB: goalsplit
+
+      # Secrets — override with real values via a .env file or shell exports
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min-32-chars}
+      EMAIL_FROM: ${EMAIL_FROM:-GoalSplit <no-reply@localhost>}
+
+      # Email provider — set one of these
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_HOST:      ${SMTP_HOST:-}
+      SMTP_PORT:      ${SMTP_PORT:-}
+      SMTP_USER:      ${SMTP_USER:-}
+      SMTP_PASS:      ${SMTP_PASS:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── MongoDB (local dev / CI only) ───────────
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"         # expose so you can connect with Compass locally
+    volumes:
+      - mongo_data:/data/db   # persist data across container restarts
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
