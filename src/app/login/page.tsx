@@ -70,7 +70,6 @@ function LoginPageContent(): JSX.Element {
     }
   }, [step]);
 
-  const helperTextId = useMemo(() => "email-helper", []);
   const statusMessageId = useMemo(() => "login-status", []);
   const codeHelperId = useMemo(() => "code-helper", []);
   const errorRegionId = useMemo(() => "form-errors", []);
@@ -254,10 +253,10 @@ function LoginPageContent(): JSX.Element {
     <div className="mx-auto flex w-full max-w-xl flex-1 items-center justify-center px-4 py-10">
       <div className="w-full space-y-6">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold text-slate-900">Access your shared goals</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Sign in to Goal Planner</h1>
           <p className="text-sm text-slate-600">
             {step === "email"
-              ? "Enter the email address you use with Goal Planner."
+              ? "We'll email you a 6-digit code. No password."
               : "Type the 6-digit code we emailed you."}
           </p>
         </div>
@@ -265,11 +264,8 @@ function LoginPageContent(): JSX.Element {
         <Card className="mx-auto w-full max-w-lg">
           <CardHeader className="space-y-2">
             <h2 className="text-xl font-semibold text-slate-900">
-              {step === "email" ? "Step 1: Email" : "Step 2: Verification"}
+              {step === "email" ? "Enter your email" : "Check your inbox"}
             </h2>
-            <p id={helperTextId} className="text-sm text-slate-600">
-              We’ll email you a 6-digit code. No password.
-            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             {step === "email" ? (
@@ -291,7 +287,7 @@ function LoginPageContent(): JSX.Element {
                     inputMode="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    aria-describedby={`${helperTextId} ${statusMessageId} ${errorRegionId}`}
+                    aria-describedby={`${statusMessageId} ${errorRegionId}`}
                     aria-invalid={emailError ? "true" : undefined}
                     required
                   />
@@ -333,7 +329,7 @@ function LoginPageContent(): JSX.Element {
                     }}
                     aria-describedby={`${codeHelperId} ${statusMessageId}`.trim()}
                     aria-invalid={codeError ? "true" : undefined}
-                    placeholder="••••••"
+                    placeholder="123456"
                     className="tracking-[0.4em] text-center"
                     required
                   />
