@@ -480,6 +480,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
   };
 
   return (
+    <div className="mx-auto w-full max-w-6xl">
     <div className="flex flex-col gap-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold text-slate-900">My Goals</h1>
@@ -552,6 +553,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
         onConfirm={() => { if (confirmDeleteId) void doDelete(confirmDeleteId); setConfirmDeleteId(null); }}
         onCancel={() => setConfirmDeleteId(null)}
       />
+    </div>
     </div>
   );
 }

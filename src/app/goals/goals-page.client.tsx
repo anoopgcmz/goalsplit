@@ -73,6 +73,7 @@ export default function GoalsPage(): JSX.Element {
   );
 
   return (
+    <div className="mx-auto w-full max-w-6xl">
     <div className="space-y-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-slate-900">Goals</h1>
@@ -129,6 +130,7 @@ export default function GoalsPage(): JSX.Element {
           description="When you finish a goal, we'll keep it here so you can look back."
         />
       </section>
+    </div>
     </div>
   );
 }

@@ -216,6 +216,7 @@ export default function NewGoalPage(): JSX.Element {
   };
 
   return (
+    <div className="mx-auto w-full max-w-5xl">
     <div className="space-y-8">
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Create a goal</p>
@@ -524,6 +525,7 @@ export default function NewGoalPage(): JSX.Element {
           </Button>
         </div>
       </div>
+    </div>
     </div>
   );
 }
