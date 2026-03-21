@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -14,8 +14,6 @@ import { InvitationBell } from "@/features/invitations/invitation-bell";
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
-  { href: "/goals/new", label: "New goal" },
-  { href: "/goals/ai", label: "AI Generate" },
 ];
 
 interface AppShellProps {
@@ -27,9 +25,13 @@ export function AppShell(props: AppShellProps): JSX.Element {
   const pathname = usePathname();
   const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const { user, status, isLoading } = useCurrentUser();
   const hideNavigation = pathname === "/login";
   const showNavigation = !hideNavigation;
+
+  const avatarTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setNavOpen(false);
@@ -55,6 +57,40 @@ export function AppShell(props: AppShellProps): JSX.Element {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [navOpen]);
+
+  useEffect(() => {
+    if (!avatarMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      const isInMenu = avatarMenuRef.current?.contains(target) ?? false;
+      const isInTrigger = avatarTriggerRef.current?.contains(target) ?? false;
+
+      if (isInMenu || isInTrigger) {
+        return;
+      }
+
+      setAvatarMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setAvatarMenuOpen(false);
+        avatarTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [avatarMenuOpen]);
 
   const userInitials = useMemo(() => {
     if (user?.name) {
@@ -138,15 +174,47 @@ export function AppShell(props: AppShellProps): JSX.Element {
               {status === "authenticated" && user ? (
                 <>
                   <InvitationBell />
-                  <Button type="button" variant="ghost" onClick={handleLogout}>
-                    Log out
-                  </Button>
-                  <span
-                    aria-label={user.name ?? user.email ?? "Account"}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700"
-                  >
-                    {userInitials}
-                  </span>
+                  <div className="relative">
+                    <button
+                      ref={avatarTriggerRef}
+                      type="button"
+                      aria-label={user.name ?? user.email ?? "Account"}
+                      aria-haspopup="menu"
+                      aria-expanded={avatarMenuOpen}
+                      onClick={() => setAvatarMenuOpen((prev) => !prev)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 transition hover:bg-primary-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                    >
+                      {userInitials}
+                    </button>
+                    {avatarMenuOpen ? (
+                      <div
+                        ref={avatarMenuRef}
+                        role="menu"
+                        aria-label="Account menu"
+                        className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm font-medium text-slate-600 shadow-lg focus:outline-none"
+                      >
+                        <Link
+                          href="/account/settings"
+                          role="menuitem"
+                          className="flex w-full items-center rounded-xl px-3 py-2 text-left transition hover:bg-slate-100"
+                          onClick={() => setAvatarMenuOpen(false)}
+                        >
+                          Account settings
+                        </Link>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setAvatarMenuOpen(false);
+                            handleLogout();
+                          }}
+                          className="flex w-full items-center rounded-xl px-3 py-2 text-left transition hover:bg-slate-100"
+                        >
+                          Log out
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </>
               ) : (
                 <>
@@ -190,7 +258,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   Close
                 </Button>
               </div>
-              <ul className="flex flex-1 flex-col gap-2">
+              <ul className="flex flex-col gap-2">
                 {navigationItems.map((item) => {
                   const isActive = pathname === item.href;
                   return (
@@ -211,9 +279,18 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   );
                 })}
               </ul>
-              <div className="hidden text-sm text-slate-500 md:block">
-                Plan how much to invest to reach your goals — no product recommendations.
-              </div>
+              {status === "authenticated" ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => {
+                    setNavOpen(false);
+                    router.push("/goals/new");
+                  }}
+                >
+                  + New goal
+                </Button>
+              ) : null}
             </div>
           </nav>
         ) : null}
