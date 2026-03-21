@@ -5,7 +5,8 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -218,7 +219,7 @@ export default function NewGoalPage(): JSX.Element {
     <div className="space-y-8">
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Create a goal</p>
-        <h1 className="text-3xl font-semibold text-slate-900">Plan a new savings goal</h1>
+        <h1 className="text-3xl font-semibold text-slate-900">New goal</h1>
         <p className="max-w-2xl text-sm text-slate-600">
           Use this guided form to capture the basics, your investment assumptions, and anything you have already saved. You can
           refine the numbers after reviewing the projection.
@@ -226,7 +227,7 @@ export default function NewGoalPage(): JSX.Element {
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
-        <form aria-describedby="goal-form-helper" className="space-y-6" onSubmit={handleSubmit} noValidate>
+        <form id="new-goal-form" aria-describedby="goal-form-helper" className="space-y-6" onSubmit={handleSubmit} noValidate>
           <span id="goal-form-helper" className="sr-only">
             All required fields must be completed before you can create a goal.
           </span>
@@ -235,7 +236,6 @@ export default function NewGoalPage(): JSX.Element {
             <Card>
               <CardHeader className="space-y-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Goal basics</p>
                   <h2 id="goal-basics-heading" className="text-xl font-semibold text-slate-900">
                     Describe what you&apos;re saving for
                   </h2>
@@ -346,7 +346,6 @@ export default function NewGoalPage(): JSX.Element {
             <Card>
               <CardHeader className="space-y-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Investment projection</p>
                   <h2 id="investment-heading" className="text-xl font-semibold text-slate-900">
                     Adjust your savings plan
                   </h2>
@@ -380,9 +379,12 @@ export default function NewGoalPage(): JSX.Element {
                 {/* Return rate slider */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="expected-return" className="text-sm font-medium text-slate-700">
-                      Expected annual return
-                    </Label>
+                    <div className="flex items-center gap-1">
+                      <Label htmlFor="expected-return" className="text-sm font-medium text-slate-700">
+                        Expected annual return
+                      </Label>
+                      <InfoTooltip content="The yearly growth rate you expect from your savings or investments. Use the presets as a guide." />
+                    </div>
                     <span className="text-sm font-semibold text-primary-700">{state.expectedReturn}%</span>
                   </div>
                   <input
@@ -461,7 +463,6 @@ export default function NewGoalPage(): JSX.Element {
             <Card>
               <CardHeader className="space-y-2">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">Optional</p>
                   <h2 id="optional-heading" className="text-xl font-semibold text-slate-900">
                     Anything already saved?
                   </h2>
@@ -471,7 +472,10 @@ export default function NewGoalPage(): JSX.Element {
                 </p>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Label htmlFor="existing-savings">Existing savings for this goal</Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="existing-savings">Existing savings for this goal</Label>
+                  <InfoTooltip content="Any money you've already set aside for this specific goal. This reduces how much you need to save going forward." />
+                </div>
                 <Input
                   id="existing-savings"
                   name="existingSavings"
@@ -491,12 +495,6 @@ export default function NewGoalPage(): JSX.Element {
                   </p>
                 ) : null}
               </CardContent>
-              <CardFooter className="flex flex-wrap items-center justify-end gap-3">
-                <Button type="button" variant="ghost" onClick={() => router.push("/goals")}>Cancel</Button>
-                <Button type="submit" disabled={!canSubmit || isSubmitting} aria-busy={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Create goal"}
-                </Button>
-              </CardFooter>
             </Card>
           </section>
         </form>
@@ -511,11 +509,20 @@ export default function NewGoalPage(): JSX.Element {
             gaps.
           </p>
           <ul className="list-disc space-y-2 pl-5">
-            <li>Projected balance chart with your contributions and growth.</li>
-            <li>Milestones for each year so you can track progress.</li>
-            <li>Next steps to fine-tune contributions or adjust assumptions.</li>
+            <li>Required contribution per period based on your return assumptions.</li>
+            <li>Option to split the goal with collaborators via email invite.</li>
+            <li>Ability to adjust your return assumptions anytime.</li>
           </ul>
         </aside>
+      </div>
+
+      <div className="sticky bottom-0 border-t border-slate-200 bg-white px-6 py-4">
+        <div className="flex items-center justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={() => router.push("/goals")}>Cancel</Button>
+          <Button type="submit" form="new-goal-form" disabled={!canSubmit || isSubmitting}>
+            {isSubmitting ? "Saving..." : "Create goal"}
+          </Button>
+        </div>
       </div>
     </div>
   );
