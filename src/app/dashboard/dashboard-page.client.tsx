@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { deleteGoal, type GoalSummary } from "@/lib/api/goals";
@@ -258,10 +259,6 @@ function GoalCard(props: GoalCardProps): JSX.Element {
     }
   };
 
-  const handleViewPlanClick = () => {
-    onViewPlan(id);
-  };
-
   const handleEditClick = () => {
     closeMenu();
     onEdit(id);
@@ -273,110 +270,106 @@ function GoalCard(props: GoalCardProps): JSX.Element {
   };
 
   return (
-    <Card className="flex h-full flex-col gap-5" data-goal-id={id}>
-      <header className="flex items-start justify-between gap-3">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="line-clamp-2 text-lg font-semibold text-slate-900">{title}</h3>
-            {collaborative ? <Badge variant="info">Shared</Badge> : null}
+    <Card className="flex h-full cursor-pointer flex-col gap-5 hover:shadow-md transition-shadow" data-goal-id={id}>
+      <button
+        type="button"
+        className="flex flex-col gap-5 text-left focus-visible:outline-none"
+        onClick={() => onViewPlan(id)}
+        disabled={isDeleting}
+        aria-label={`View plan for ${title}`}
+      >
+        <header className="flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="line-clamp-2 text-lg font-semibold text-slate-900">{title}</h3>
+              {collaborative ? <Badge variant="info">Shared</Badge> : null}
+            </div>
+            <p className="text-sm text-slate-600">
+              Due {relativeDue} <span className="text-slate-400">•</span> {formattedTargetDate}
+            </p>
           </div>
-          <p className="text-sm text-slate-600">
-            Due {relativeDue} <span className="text-slate-400">•</span> {formattedTargetDate}
-          </p>
-        </div>
-        {canManage ? (
-          <div className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              aria-haspopup="menu"
-              aria-label="Goal actions"
-              className="h-8 w-8 rounded-full p-0 text-lg text-slate-500 hover:text-slate-700"
-              onClick={handleMenuToggle}
-              onKeyDown={handleTriggerKeyDown}
-              aria-expanded={isMenuOpen}
-              aria-controls={menuId}
-              id={triggerId}
-              ref={triggerRef}
-              disabled={isDeleting}
-            >
-              ⋯
-            </Button>
-            {isMenuOpen ? (
-              <div
-                id={menuId}
-                role="menu"
-                aria-labelledby={triggerId}
-                ref={menuRef}
-                className="absolute right-0 top-full z-10 mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm font-medium text-slate-600 shadow-lg focus:outline-none"
-                onKeyDown={handleMenuKeyDown}
+          {canManage ? (
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <Button
+                type="button"
+                variant="ghost"
+                aria-haspopup="menu"
+                aria-label="Goal actions"
+                className="h-8 w-8 rounded-full p-0 text-lg text-slate-500 hover:text-slate-700"
+                onClick={handleMenuToggle}
+                onKeyDown={handleTriggerKeyDown}
+                aria-expanded={isMenuOpen}
+                aria-controls={menuId}
+                id={triggerId}
+                ref={triggerRef}
+                disabled={isDeleting}
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  ref={setMenuItemRef(0)}
-                  className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                  onClick={handleEditClick}
-                  disabled={isDeleting}
+                ⋯
+              </Button>
+              {isMenuOpen ? (
+                <div
+                  id={menuId}
+                  role="menu"
+                  aria-labelledby={triggerId}
+                  ref={menuRef}
+                  className="absolute right-0 top-full z-10 mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm font-medium text-slate-600 shadow-lg focus:outline-none"
+                  onKeyDown={handleMenuKeyDown}
                 >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  ref={setMenuItemRef(1)}
-                  className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:text-red-300"
-                  onClick={handleDeleteClick}
-                  disabled={isDeleting}
-                >
-                  Delete
-                </button>
-              </div>
-            ) : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    ref={setMenuItemRef(0)}
+                    className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    onClick={handleEditClick}
+                    disabled={isDeleting}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    ref={setMenuItemRef(1)}
+                    className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:text-red-300"
+                    onClick={handleDeleteClick}
+                    disabled={isDeleting}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </header>
+
+        <dl className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+          <div>
+            <dt className="font-medium text-slate-500">Target amount</dt>
+            <dd className="text-base font-semibold text-slate-900">{currencyFormatter.format(targetAmount)}</dd>
           </div>
-        ) : null}
-      </header>
+          <div>
+            <dt className="font-medium text-slate-500">{contributionLabel === "/yr" ? "Save per year" : "Save per month"}</dt>
+            <dd className="text-base font-semibold text-slate-900">
+              {currencyFormatter.format(contributionAmount)}
+              <span className="ml-1 text-sm font-normal text-slate-600">{contributionLabel}</span>
+            </dd>
+          </div>
+        </dl>
 
-      <dl className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-        <div>
-          <dt className="font-medium text-slate-500">Target amount</dt>
-          <dd className="text-base font-semibold text-slate-900">{currencyFormatter.format(targetAmount)}</dd>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-600">
+            <span>Progress</span>
+            <span>{cappedProgress}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-primary-500 transition-[width] duration-500 ease-out motion-reduce:transition-none"
+              style={{ width: `${animatedProgress}%` }}
+              aria-hidden="true"
+            />
+          </div>
+          <span className="sr-only">Goal is {cappedProgress}% funded</span>
         </div>
-        <div>
-          <dt className="font-medium text-slate-500">On-track pace</dt>
-          <dd className="text-base font-semibold text-slate-900">
-            {currencyFormatter.format(contributionAmount)}
-            <span className="ml-1 text-sm font-normal text-slate-600">{contributionLabel}</span>
-          </dd>
-        </div>
-      </dl>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs font-medium text-slate-600">
-          <span>Progress</span>
-          <span>{cappedProgress}%</span>
-        </div>
-        <div className="h-2 w-full rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full bg-primary-500 transition-[width] duration-500 ease-out motion-reduce:transition-none"
-            style={{ width: `${animatedProgress}%` }}
-            aria-hidden="true"
-          />
-        </div>
-        <span className="sr-only">Goal is {cappedProgress}% funded</span>
-      </div>
-
-      <div className="mt-auto flex items-center justify-between gap-3">
-        <Button
-          type="button"
-          variant="secondary"
-          className="flex-1"
-          onClick={handleViewPlanClick}
-          disabled={isDeleting}
-        >
-          View plan
-        </Button>
-      </div>
+      </button>
     </Card>
   );
 }
@@ -392,6 +385,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
   const { publish } = useToast();
   const [goalList, setGoalList] = useState<GoalSummary[]>(goals);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     setGoalList(goals);
@@ -416,15 +410,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
     router.push(`/goals/${encodeURIComponent(goalId)}/edit`);
   };
 
-  const handleDeleteGoal = async (goalId: string) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this goal? This action cannot be undone.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
+  const doDelete = async (goalId: string) => {
     const previousGoals = [...goalList];
     const removedIndex = previousGoals.findIndex((goal) => goal.id === goalId);
     const removedGoal = removedIndex >= 0 ? previousGoals[removedIndex] : undefined;
@@ -483,6 +469,10 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
     }
   };
 
+  const handleDeleteGoal = (goalId: string) => {
+    setConfirmDeleteId(goalId);
+  };
+
   return (
     <div className="flex flex-col gap-8">
       <header className="space-y-2">
@@ -493,7 +483,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
       <section aria-label="Summary" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-500">Total monthly required</p>
+            <p className="text-sm font-medium text-slate-500">Total to save</p>
             <p className="text-3xl font-semibold text-slate-900">
               {currencyFormatter.format(totalContributionAmount)}
             </p>
@@ -547,6 +537,15 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
           />
         )}
       </section>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete goal?"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { if (confirmDeleteId) void doDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }
