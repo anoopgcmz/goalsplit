@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { GroupProgress } from "@/components/group-progress";
 import type { AuthUser } from "@/app/api/auth/schemas";
@@ -84,10 +85,10 @@ const PlanSummaryCard = (props: {
   const lumpSumLabel = lumpSumValue ?? "—";
 
   return (
-    <Card className="rounded-2xl border border-border/50 bg-white p-6 shadow-sm">
+    <Card className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="space-y-6">
         <header className="space-y-2">
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="text-sm font-medium uppercase tracking-[0.14em] text-slate-500">
             Plan summary
           </p>
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Current plan snapshot</h2>
@@ -95,34 +96,34 @@ const PlanSummaryCard = (props: {
 
         <div className="space-y-6">
           <div className="space-y-3">
-            <h3 className="text-sm font-medium uppercase text-muted-foreground">Goal info</h3>
+            <h3 className="text-sm font-medium uppercase text-slate-500">Goal info</h3>
             <div className="grid grid-cols-2 gap-y-2">
-              <span className="text-sm font-medium text-muted-foreground">Target amount</span>
-              <span className="text-lg font-semibold text-primary">{targetAmountLabel}</span>
+              <span className="text-sm font-medium text-slate-500">Target amount</span>
+              <span className="text-lg font-semibold text-slate-900">{targetAmountLabel}</span>
               {existingSavingsValue ? (
                 <Fragment>
-                  <span className="text-sm font-medium text-muted-foreground">Existing savings</span>
-                  <span className="text-lg font-semibold text-primary">{existingSavingsValue}</span>
+                  <span className="text-sm font-medium text-slate-500">Existing savings</span>
+                  <span className="text-lg font-semibold text-slate-900">{existingSavingsValue}</span>
                 </Fragment>
               ) : null}
             </div>
           </div>
 
-          <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-            <h3 className="text-sm font-medium uppercase text-muted-foreground">Contribution</h3>
+          <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+            <h3 className="text-sm font-medium uppercase text-slate-500">Contribution</h3>
             <div className="grid grid-cols-2 gap-y-2">
-              <span className="text-sm font-medium text-muted-foreground">Required contribution</span>
-              <span className="text-lg font-semibold text-primary">{perPeriodLabel}</span>
-              <span className="text-sm font-medium text-muted-foreground">Lump-sum equivalent</span>
-              <span className="text-lg font-semibold text-primary">{lumpSumLabel}</span>
+              <span className="text-sm font-medium text-slate-500">Save per {periodLabel}</span>
+              <span className="text-lg font-semibold text-slate-900">{perPeriodLabel}</span>
+              <span className="text-sm font-medium text-slate-500">One-time payment equivalent</span>
+              <span className="text-lg font-semibold text-slate-900">{lumpSumLabel}</span>
             </div>
           </div>
 
-          <div className="mt-4 space-y-3 border-t border-border/50 pt-4">
-            <h3 className="text-sm font-medium uppercase text-muted-foreground">Returns</h3>
+          <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+            <h3 className="text-sm font-medium uppercase text-slate-500">Returns</h3>
             <div className="grid grid-cols-2 gap-y-2">
-              <span className="text-sm font-medium text-muted-foreground">Expected return / year</span>
-              <span className="text-lg font-semibold text-primary">{expectedReturnLabel}</span>
+              <span className="text-sm font-medium text-slate-500">Assumed annual return</span>
+              <span className="text-lg font-semibold text-slate-900">{expectedReturnLabel}</span>
             </div>
           </div>
         </div>
@@ -1934,8 +1935,51 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
     currentUser != null && ownerId != null && ownerId === currentUser.id;
   const showMembersSection = plan.goal.isShared || canManageMembers;
 
+  const tabItems = [
+    {
+      id: "overview",
+      label: "Overview",
+      content: (
+        <div className="space-y-6">
+          <PlanSummaryCard plan={plan} formatCurrency={formatCurrency} formatPercent={formatPercent} />
+          <PlanWarnings warnings={plan.warnings} />
+          {plan.goal.isShared ? (
+            <GroupProgress goalId={goalId} currency={plan.goal.currency} />
+          ) : null}
+        </div>
+      ),
+    },
+    ...(showMembersSection
+      ? [
+          {
+            id: "team",
+            label: "Team",
+            content: (
+              <div className="space-y-6">
+                <SharedContributions
+                  plan={plan}
+                  formatCurrency={formatCurrency}
+                  formatPercent={formatPercent}
+                />
+                <MembersSection
+                  goalId={goalId}
+                  members={plan.members}
+                  totalPerPeriod={plan.totals.perPeriod}
+                  formatCurrency={formatCurrency}
+                  formatPercent={formatPercent}
+                  canManageMembers={canManageMembers}
+                  onMembersUpdated={() => loadPlan({ silent: true })}
+                  isPlanRefreshing={isRefreshing}
+                />
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
       <header className="space-y-4">
         <div className="space-y-2">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">Goal plan</p>
@@ -1951,33 +1995,7 @@ export default function GoalPlanPage(props: GoalPlanPageProps): JSX.Element {
         </div>
       </header>
 
-      <PlanWarnings warnings={plan.warnings} />
-
-      <PlanSummaryCard plan={plan} formatCurrency={formatCurrency} formatPercent={formatPercent} />
-
-      {plan.goal.isShared ? (
-        <GroupProgress goalId={goalId} currency={plan.goal.currency} />
-      ) : null}
-
-      <SharedContributions
-        plan={plan}
-        formatCurrency={formatCurrency}
-        formatPercent={formatPercent}
-      />
-
-      {showMembersSection ? (
-        <MembersSection
-          goalId={goalId}
-          members={plan.members}
-          totalPerPeriod={plan.totals.perPeriod}
-          formatCurrency={formatCurrency}
-          formatPercent={formatPercent}
-          canManageMembers={canManageMembers}
-          onMembersUpdated={() => loadPlan({ silent: true })}
-          isPlanRefreshing={isRefreshing}
-        />
-      ) : null}
-
+      <Tabs tabs={tabItems} defaultTabId="overview" />
     </div>
   );
 }
