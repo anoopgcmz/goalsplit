@@ -131,8 +131,8 @@ export function AppShell(props: AppShellProps): JSX.Element {
   const layoutClasses = useMemo(
     () =>
       cn(
-        "mx-auto flex w-full max-w-6xl flex-1 px-4 pb-10 pt-6 sm:px-6 lg:px-8",
-        showNavigation ? "gap-6" : "flex-col",
+        "flex w-full flex-1",
+        showNavigation ? "gap-0" : "flex-col",
       ),
     [showNavigation],
   );
@@ -147,7 +147,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
           Skip to content
         </a>
         <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
-          <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto flex h-16 w-full max-w-screen-2xl items-center justify-between px-6 lg:px-10">
             <div className="flex items-center gap-3">
               {showNavigation ? (
                 <Button
@@ -261,7 +261,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
             id="primary-navigation"
             aria-label="Primary"
             className={cn(
-              "fixed inset-y-0 left-0 z-30 w-64 border-r border-border bg-surface px-4 py-6 shadow-elevated transition-transform duration-200 ease-out md:static md:h-auto md:w-60 md:translate-x-0 md:border-r md:bg-transparent md:p-0 md:shadow-none",
+              "fixed inset-y-0 left-0 z-30 w-64 border-r border-border bg-surface px-4 py-6 shadow-elevated transition-transform duration-200 ease-out md:static md:flex md:h-auto md:w-56 md:shrink-0 md:translate-x-0 md:flex-col md:border-r md:bg-surface md:px-4 md:py-6 md:shadow-none",
               navOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
             )}
           >
@@ -320,13 +320,13 @@ export function AppShell(props: AppShellProps): JSX.Element {
             </div>
           </nav>
         ) : null}
-        <div className="flex flex-1 flex-col rounded-2xl border border-border bg-surface shadow-card">
-          <main id="content" className="flex-1 rounded-2xl bg-surface p-6">
+        <div className="flex flex-1 flex-col min-w-0 px-6 pb-10 pt-6 lg:px-10">
+          <main id="content" className="flex-1">
             {children}
           </main>
-          <footer className="border-t border-border px-6 py-4 text-sm text-slate-500">
-            © {new Date().getFullYear()} Goal Planner. Assumed annual returns are for planning only and not recommendations of any
-            product.
+          <footer className="border-t border-border pt-4 mt-6 text-sm text-slate-500">
+            © {new Date().getFullYear()} Goal Planner. Assumed annual returns are for
+            planning only and not recommendations of any product.
           </footer>
         </div>
       </div>
