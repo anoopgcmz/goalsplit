@@ -317,30 +317,6 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   );
                 })}
               </ul>
-              {status === "authenticated" ? (
-                <div className="flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => {
-                      setNavOpen(false);
-                      router.push("/goals/new");
-                    }}
-                  >
-                    + New goal
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setNavOpen(false);
-                      router.push("/goals/ai");
-                    }}
-                  >
-                    ✨ New goal with AI
-                  </Button>
-                </div>
-              ) : null}
             </div>
           </nav>
         ) : null}
