@@ -275,6 +275,7 @@ export default function AiGoalPage(): JSX.Element {
 
   // ── render ──
   return (
+    <div className="mx-auto w-full max-w-5xl">
     <div className="space-y-8">
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-primary-700">
@@ -723,6 +724,7 @@ export default function AiGoalPage(): JSX.Element {
           </ul>
         </aside>
       ) : null}
+    </div>
     </div>
   );
 }
