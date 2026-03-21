@@ -376,33 +376,6 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   );
                 })}
               </ul>
-              {sidebarStatsLoading ? (
-                <div className="hidden md:flex flex-col gap-2 rounded-2xl bg-slate-50 px-4 py-4 animate-pulse">
-                  <div className="h-3 w-16 rounded bg-slate-100" />
-                  <div className="h-4 w-full rounded bg-slate-100" />
-                </div>
-              ) : sidebarStats !== null ? (
-                <div className="hidden md:block rounded-2xl bg-primary-50 px-4 py-4 text-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary-600 mb-3">
-                    Overview
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Active goals</span>
-                      <span className="font-semibold text-slate-800">{sidebarStats.totalGoals}</span>
-                    </div>
-                    {sidebarStats.nearestDeadline !== null && (
-                      <div className="flex flex-col gap-0.5 border-t border-primary-100 pt-2 mt-1">
-                        <span className="text-slate-500 text-xs">Next deadline</span>
-                        <span className="font-medium text-slate-800 truncate">{sidebarStats.nearestDeadline.title}</span>
-                        <span className="text-xs text-primary-600">
-                          {dateFormatter.format(new Date(sidebarStats.nearestDeadline.targetDate))}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : null}
               <div className="mt-auto hidden md:block border-t border-border pt-4">
                 <button
                   type="button"
