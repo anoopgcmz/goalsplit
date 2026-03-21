@@ -140,18 +140,18 @@ export function AppShell(props: AppShellProps): JSX.Element {
       <div className="min-h-screen bg-background text-slate-900">
         <a
           href="#content"
-          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-2xl focus-visible:bg-primary-600 focus-visible:px-4 focus-visible:py-2 focus-visible:text-white"
+          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-4 focus-visible:z-50 focus-visible:rounded-2xl focus-visible:bg-primary-500 focus-visible:px-4 focus-visible:py-2 focus-visible:text-white"
         >
           Skip to content
         </a>
-        <header className="sticky top-0 z-40 border-b border-slate-200 bg-surface/95 backdrop-blur">
+        <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
           <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               {showNavigation ? (
                 <Button
                   type="button"
                   variant="ghost"
-                  className="px-2 py-2 text-slate-600 md:hidden"
+                  className="px-2 py-2 md:hidden"
                   aria-controls="primary-navigation"
                   aria-expanded={navOpen}
                   onClick={() => setNavOpen((prev) => !prev)}
@@ -161,10 +161,10 @@ export function AppShell(props: AppShellProps): JSX.Element {
               ) : null}
               <Link
                 href="/dashboard"
-                className="flex items-center gap-2 text-base font-semibold text-slate-900"
+                className="flex items-center gap-2 text-base font-semibold text-primary-600"
                 title="Plan how much to invest to reach your goals — no product recommendations."
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary-600 text-sm font-bold text-white shadow-md">
+                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary-500 text-sm font-bold text-white shadow-card">
                   GP
                 </span>
                 <span className="hidden sm:inline">Goal Planner</span>
@@ -182,7 +182,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
                       aria-haspopup="menu"
                       aria-expanded={avatarMenuOpen}
                       onClick={() => setAvatarMenuOpen((prev) => !prev)}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 transition hover:bg-primary-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white transition hover:bg-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
                     >
                       {userInitials}
                     </button>
@@ -191,12 +191,12 @@ export function AppShell(props: AppShellProps): JSX.Element {
                         ref={avatarMenuRef}
                         role="menu"
                         aria-label="Account menu"
-                        className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm font-medium text-slate-600 shadow-lg focus:outline-none"
+                        className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-border bg-surface p-1 text-sm font-medium text-slate-600 shadow-elevated focus:outline-none"
                       >
                         <Link
                           href="/account/settings"
                           role="menuitem"
-                          className="flex w-full items-center rounded-xl px-3 py-2 text-left transition hover:bg-slate-100"
+                          className="flex w-full items-center rounded-xl px-3 py-2 text-left transition hover:bg-primary-50 hover:text-primary-600"
                           onClick={() => setAvatarMenuOpen(false)}
                         >
                           Account settings
@@ -208,7 +208,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
                             setAvatarMenuOpen(false);
                             handleLogout();
                           }}
-                          className="flex w-full items-center rounded-xl px-3 py-2 text-left transition hover:bg-slate-100"
+                          className="flex w-full items-center rounded-xl px-3 py-2 text-left transition hover:bg-primary-50 hover:text-primary-600"
                         >
                           Log out
                         </button>
@@ -223,7 +223,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
                   </Button>
                   <span
                     aria-hidden="true"
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700"
                   >
                     GP
                   </span>
@@ -237,7 +237,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
           type="button"
           aria-hidden="true"
           tabIndex={-1}
-          className="fixed inset-0 z-20 bg-slate-900/40 md:hidden"
+          className="fixed inset-0 z-20 bg-slate-900/50 md:hidden"
           onClick={() => setNavOpen(false)}
         />
       ) : null}
@@ -247,7 +247,7 @@ export function AppShell(props: AppShellProps): JSX.Element {
             id="primary-navigation"
             aria-label="Primary"
             className={cn(
-              "fixed inset-y-0 left-0 z-30 w-64 border-r border-slate-200 bg-surface px-4 py-6 shadow-md transition-transform duration-200 ease-out md:static md:h-auto md:w-60 md:translate-x-0 md:border-r md:bg-transparent md:p-0 md:shadow-none",
+              "fixed inset-y-0 left-0 z-30 w-64 border-r border-border bg-surface px-4 py-6 shadow-elevated transition-transform duration-200 ease-out md:static md:h-auto md:w-60 md:translate-x-0 md:border-r md:bg-transparent md:p-0 md:shadow-none",
               navOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
             )}
           >
@@ -269,8 +269,8 @@ export function AppShell(props: AppShellProps): JSX.Element {
                         className={cn(
                           "flex items-center gap-3 rounded-2xl px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                           isActive
-                            ? "bg-primary-100 text-primary-700 shadow-md"
-                            : "text-slate-600 hover:bg-slate-100/70",
+                            ? "bg-primary-100 text-primary-700 shadow-card"
+                            : "text-slate-600 hover:bg-primary-50 hover:text-primary-600",
                         )}
                       >
                         {item.label}
@@ -294,11 +294,11 @@ export function AppShell(props: AppShellProps): JSX.Element {
             </div>
           </nav>
         ) : null}
-        <div className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-surface shadow-md">
+        <div className="flex flex-1 flex-col rounded-2xl border border-border bg-surface shadow-card">
           <main id="content" className="flex-1 rounded-2xl bg-surface p-6">
             {children}
           </main>
-          <footer className="border-t border-slate-200 px-6 py-4 text-sm text-slate-500">
+          <footer className="border-t border-border px-6 py-4 text-sm text-slate-500">
             © {new Date().getFullYear()} Goal Planner. Assumed annual returns are for planning only and not recommendations of any
             product.
           </footer>

@@ -295,7 +295,7 @@ export function InvitationsPageClient(): JSX.Element {
         {detailState.loading ? (
           <p className="py-4 text-sm text-slate-500">Loading invitation…</p>
         ) : detailState.error ? (
-          <p className="py-4 text-sm text-rose-600">{detailState.error}</p>
+          <p className="py-4 text-sm text-danger">{detailState.error}</p>
         ) : detail ? (
           <div className="space-y-3 text-sm text-slate-700">
             <div>
@@ -325,7 +325,7 @@ export function InvitationsPageClient(): JSX.Element {
               </div>
             ) : null}
             {detail.invitation.status !== "pending" ? (
-              <p className="text-sm font-semibold text-emerald-600">
+              <p className="text-sm font-semibold text-primary-600">
                 This invitation is {detail.invitation.status.charAt(0).toUpperCase() + detail.invitation.status.slice(1)}.
               </p>
             ) : null}

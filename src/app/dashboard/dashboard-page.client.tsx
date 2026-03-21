@@ -329,7 +329,7 @@ function GoalCard(props: GoalCardProps): JSX.Element {
                     type="button"
                     role="menuitem"
                     ref={setMenuItemRef(1)}
-                    className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 disabled:text-red-300"
+                    className="flex w-full items-center justify-start rounded-xl px-3 py-2 text-left text-danger hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:text-danger-300"
                     onClick={handleDeleteClick}
                     disabled={isDeleting}
                   >
@@ -360,7 +360,7 @@ function GoalCard(props: GoalCardProps): JSX.Element {
             <span>Progress</span>
             <span>{cappedProgress}%</span>
           </div>
-          <div className="h-2 w-full rounded-full bg-slate-100">
+          <div className="h-2 w-full rounded-full bg-primary-100">
             <div
               className="h-full rounded-full bg-primary-500 transition-[width] duration-500 ease-out motion-reduce:transition-none"
               style={{ width: `${animatedProgress}%` }}
@@ -486,7 +486,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
         <p className="text-sm text-slate-600">Track every target, how much to set aside, and when each plan will complete.</p>
       </header>
 
-      <section aria-label="Summary" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section aria-label="Summary" className="rounded-3xl border border-border bg-surface p-6 shadow-card">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-500">Total to save</p>
@@ -534,7 +534,7 @@ export default function DashboardPage(props: DashboardPageProps): JSX.Element {
             description="Create your first goal to see how much to save each month."
             actionLabel="Create your first goal"
             icon={
-              <svg aria-hidden="true" viewBox="0 0 120 80" className="h-20 w-28 text-slate-300" role="img">
+              <svg aria-hidden="true" viewBox="0 0 120 80" className="h-20 w-28 text-primary-300" role="img">
                 <rect x="10" y="20" width="100" height="40" rx="12" className="fill-current opacity-30" />
                 <path d="M24 40h72" className="stroke-current" strokeWidth="6" strokeLinecap="round" opacity="0.6" />
                 <path d="M60 24v32" className="stroke-current" strokeWidth="6" strokeLinecap="round" opacity="0.6" />

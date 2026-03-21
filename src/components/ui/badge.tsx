@@ -10,10 +10,10 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 
 const badgeStyles: Record<BadgeVariant, string> = {
   neutral: "bg-slate-100 text-slate-700",
-  success: "bg-emerald-100 text-emerald-700",
-  info: "bg-primary-100 text-primary-700",
-  warning: "bg-amber-100 text-amber-700",
-  danger: "bg-red-100 text-red-700",
+  success: "bg-primary-100 text-primary-800",
+  info: "bg-secondary-100 text-secondary-800",
+  warning: "bg-accent-100 text-accent-700 border border-accent-200",
+  danger: "bg-danger-bg text-danger border border-danger-light",
 };
 
 export function Badge(props: BadgeProps): JSX.Element {

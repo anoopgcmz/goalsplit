@@ -218,7 +218,7 @@ export function InvitationBell(): JSX.Element | null {
 
     if (error) {
       return (
-        <div className="space-y-2 py-4 text-sm text-rose-600">
+        <div className="space-y-2 py-4 text-sm text-danger">
           <p>{error}</p>
           <Button type="button" variant="secondary" onClick={() => void refresh()}>
             Try again
@@ -366,7 +366,7 @@ export function InvitationBell(): JSX.Element | null {
         {detailStatus === "loading" ? (
           <p className="py-4 text-sm text-slate-500">Loading invitation…</p>
         ) : detailError ? (
-          <p className="py-4 text-sm text-rose-600">{detailError}</p>
+          <p className="py-4 text-sm text-danger">{detailError}</p>
         ) : detail ? (
           <div className="space-y-3 text-sm text-slate-700">
             <div>
@@ -398,7 +398,7 @@ export function InvitationBell(): JSX.Element | null {
               </div>
             ) : null}
             {detail.status !== "pending" ? (
-              <p className="text-sm font-semibold text-emerald-600">
+              <p className="text-sm font-semibold text-primary-600">
                 This invitation is {detail.status.charAt(0).toUpperCase() + detail.status.slice(1)}.
               </p>
             ) : null}

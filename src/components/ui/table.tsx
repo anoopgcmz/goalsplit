@@ -14,10 +14,10 @@ export function Table(props: TableProps): JSX.Element {
   const { className, children, ...rest } = props;
 
   return (
-    <div className="w-full max-w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-200 shadow-md">
+    <div className="w-full max-w-full overflow-x-auto overflow-y-hidden rounded-2xl border border-border shadow-card">
       <table
         className={cn(
-          "min-w-full border-separate border-spacing-0 bg-white text-left text-sm",
+          "min-w-full border-separate border-spacing-0 bg-surface text-left text-sm",
           className,
         )}
         {...rest}
@@ -31,7 +31,7 @@ export function Table(props: TableProps): JSX.Element {
 export function TableHead(props: HTMLAttributes<HTMLTableSectionElement>): JSX.Element {
   const { className, ...rest } = props;
 
-  return <thead className={cn("bg-slate-50 text-slate-600", className)} {...rest} />;
+  return <thead className={cn("bg-surface-alt text-slate-500", className)} {...rest} />;
 }
 
 export function TableHeaderCell(props: TableHeadCellProps): JSX.Element {
@@ -49,13 +49,13 @@ export function TableHeaderCell(props: TableHeadCellProps): JSX.Element {
 export function TableBody(props: HTMLAttributes<HTMLTableSectionElement>): JSX.Element {
   const { className, ...rest } = props;
 
-  return <tbody className={cn("divide-y divide-slate-100", className)} {...rest} />;
+  return <tbody className={cn("divide-y divide-border", className)} {...rest} />;
 }
 
 export function TableRow(props: TableRowProps): JSX.Element {
   const { className, ...rest } = props;
 
-  return <tr className={cn("hover:bg-slate-50", className)} {...rest} />;
+  return <tr className={cn("hover:bg-primary-50", className)} {...rest} />;
 }
 
 export function TableCell(props: TableCellProps): JSX.Element {

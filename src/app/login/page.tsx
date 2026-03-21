@@ -244,9 +244,9 @@ function LoginPageContent(): JSX.Element {
 
   const statusTone =
     status.type === "success"
-      ? "text-emerald-600"
+      ? "text-primary-600"
       : status.type === "error" || status.type === "rate-limit"
-      ? "text-rose-600"
+      ? "text-danger"
       : "text-slate-600";
 
   return (
@@ -297,7 +297,7 @@ function LoginPageContent(): JSX.Element {
                   role="status"
                   aria-live="polite"
                   aria-atomic="true"
-                  className="min-h-[1.25rem] text-sm text-rose-600"
+                  className="min-h-[1.25rem] text-sm text-danger"
                 >
                   {emailError || null}
                 </div>
@@ -341,7 +341,7 @@ function LoginPageContent(): JSX.Element {
                   role="status"
                   aria-live="polite"
                   aria-atomic="true"
-                  className="min-h-[1.25rem] text-sm text-rose-600"
+                  className="min-h-[1.25rem] text-sm text-danger"
                 >
                   {codeError || null}
                 </div>

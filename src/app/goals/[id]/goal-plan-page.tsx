@@ -144,7 +144,7 @@ const PlanWarnings = (props: { warnings?: string[] }) => {
       {warnings.map((warning) => (
         <div
           key={warning}
-          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900"
+          className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm font-medium text-accent-900"
         >
           {warning}
         </div>
@@ -1299,7 +1299,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       {percentWarningActive ? (
         <div
           id={percentWarningId}
-          className="flex flex-wrap items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:items-center sm:justify-between"
+          className="flex flex-wrap items-start gap-3 rounded-2xl border border-accent-200 bg-accent-50 p-4 text-sm text-accent-900 sm:items-center sm:justify-between"
           role="status"
           aria-live="polite"
         >
@@ -1322,7 +1322,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
       {overflowWarningActive ? (
         <div
           id={overflowWarningId}
-          className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
+          className="rounded-2xl border border-danger-light bg-danger-bg p-4 text-sm text-danger-900"
           role="alert"
         >
           <p>
@@ -1412,12 +1412,12 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     aria-describedby={splitDescribedBy.length > 0 ? splitDescribedBy : undefined}
                     aria-invalid={splitError ? "true" : undefined}
                     aria-readonly={canManageMembers ? undefined : "true"}
-                    className={splitError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
+                    className={splitError ? "border-danger focus-visible:ring-danger" : undefined}
                     placeholder="0"
                     readOnly={!canManageMembers}
                   />
                   {splitError ? (
-                    <p id={splitErrorId} className="mt-1 text-xs text-rose-600">
+                    <p id={splitErrorId} className="mt-1 text-xs text-danger">
                       {splitError}
                     </p>
                   ) : null}
@@ -1436,12 +1436,12 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                     aria-describedby={fixedDescribedBy.length > 0 ? fixedDescribedBy : undefined}
                     aria-invalid={fixedError ? "true" : undefined}
                     aria-readonly={canManageMembers ? undefined : "true"}
-                    className={fixedError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
+                    className={fixedError ? "border-danger focus-visible:ring-danger" : undefined}
                     placeholder="0"
                     readOnly={!canManageMembers}
                   />
                   {fixedError ? (
-                    <p id={fixedErrorId} className="mt-1 text-xs text-rose-600">
+                    <p id={fixedErrorId} className="mt-1 text-xs text-danger">
                       {fixedError}
                     </p>
                   ) : null}
@@ -1457,7 +1457,7 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                       <Button
                         type="button"
                         variant="ghost"
-                        className="text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                        className="text-sm font-semibold text-danger hover:bg-danger-bg"
                         disabled={isRemovingMember}
                         onClick={() => requestRemoveMember(row.userId)}
                       >
@@ -1534,10 +1534,10 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   inviteEmailErrorId,
                 )}
                 aria-invalid={inviteEmailError ? "true" : undefined}
-                className={inviteEmailError ? "border-rose-400 focus-visible:ring-rose-500" : undefined}
+                className={inviteEmailError ? "border-danger focus-visible:ring-danger" : undefined}
               />
               {inviteEmailError ? (
-                <p id={inviteEmailErrorId} className="text-xs text-rose-600">
+                <p id={inviteEmailErrorId} className="text-xs text-danger">
                   {inviteEmailError}
                 </p>
               ) : null}
@@ -1614,11 +1614,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   aria-invalid={isPercentMode && inviteSplitError ? "true" : undefined}
                   className={cn(
                     !isPercentMode && "border-slate-200 text-slate-400",
-                    inviteSplitError && "border-rose-400 focus-visible:ring-rose-500",
+                    inviteSplitError && "border-danger focus-visible:ring-danger",
                   )}
                 />
                 {inviteSplitError ? (
-                  <p id={inviteSplitErrorId} className="text-xs text-rose-600">
+                  <p id={inviteSplitErrorId} className="text-xs text-danger">
                     {inviteSplitError}
                   </p>
                 ) : null}
@@ -1650,11 +1650,11 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                   aria-invalid={isFixedMode && inviteFixedError ? "true" : undefined}
                   className={cn(
                     !isFixedMode && "border-slate-200 text-slate-400",
-                    inviteFixedError && "border-rose-400 focus-visible:ring-rose-500",
+                    inviteFixedError && "border-danger focus-visible:ring-danger",
                   )}
                 />
                 {inviteFixedError ? (
-                  <p id={inviteFixedErrorId} className="text-xs text-rose-600">
+                  <p id={inviteFixedErrorId} className="text-xs text-danger">
                     {inviteFixedError}
                   </p>
                 ) : null}
@@ -1688,13 +1688,13 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
                 )}
                 aria-invalid={inviteMessageError ? "true" : undefined}
                 className={cn(
-                  "min-h-[96px] w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                  inviteMessageError && "border-rose-400 focus-visible:ring-rose-500",
+                  "min-h-[96px] w-full rounded-2xl border border-border bg-surface px-3 py-2 text-sm text-slate-900 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  inviteMessageError && "border-danger focus-visible:ring-danger",
                 )}
                 placeholder="Share context or expectations (optional)"
               />
               {inviteMessageError ? (
-                <p id={inviteMessageErrorId} className="text-xs text-rose-600">
+                <p id={inviteMessageErrorId} className="text-xs text-danger">
                   {inviteMessageError}
                 </p>
               ) : null}
@@ -1709,8 +1709,8 @@ function MembersSection(props: MembersSectionProps): JSX.Element {
               className={
                 inviteMessage
                   ? inviteStatus === "error"
-                    ? "text-sm text-rose-600"
-                    : "whitespace-pre-line text-sm text-emerald-700"
+                    ? "text-sm text-danger"
+                    : "whitespace-pre-line text-sm text-primary-700"
                   : "sr-only"
               }
             >

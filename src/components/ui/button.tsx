@@ -11,13 +11,13 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-primary-600 text-white shadow-md hover:bg-primary-700 active:bg-primary-800 active:shadow focus-visible:ring-primary-500 disabled:bg-primary-300",
+    "bg-primary-500 text-white shadow-md hover:bg-primary-600 active:bg-primary-700 active:shadow focus-visible:ring-primary-500 disabled:bg-primary-300",
   secondary:
-    "bg-white text-slate-900 shadow-md hover:bg-slate-50 active:bg-slate-100 active:text-slate-900 active:shadow focus-visible:ring-primary-500 disabled:bg-slate-100",
+    "bg-white text-slate-900 border border-border shadow-md hover:bg-surface-alt hover:border-primary-300 active:bg-slate-100 active:text-slate-900 active:shadow focus-visible:ring-primary-500 disabled:bg-slate-100",
   ghost:
-    "bg-transparent text-slate-700 hover:bg-slate-100/80 active:bg-slate-200/70 focus-visible:ring-primary-500 disabled:text-slate-400",
+    "bg-transparent text-primary-600 hover:bg-primary-50 active:bg-primary-100 focus-visible:ring-primary-500 disabled:text-slate-400",
   danger:
-    "bg-rose-600 text-white shadow-md hover:bg-rose-700 active:bg-rose-800 active:shadow focus-visible:ring-rose-500 disabled:bg-rose-300",
+    "bg-danger text-white shadow-md hover:bg-danger-hover active:bg-danger-700 active:shadow focus-visible:ring-danger disabled:bg-danger-300",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

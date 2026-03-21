@@ -61,7 +61,7 @@ export function Tabs(props: TabsProps): JSX.Element {
       <div
         role="tablist"
         aria-orientation="horizontal"
-        className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-1 shadow-md"
+        className="flex gap-2 rounded-2xl border border-border bg-surface p-1 shadow-card"
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab;
@@ -79,8 +79,8 @@ export function Tabs(props: TabsProps): JSX.Element {
               className={cn(
                 "flex-1 rounded-2xl px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive
-                  ? "bg-primary-100 text-primary-700 shadow-md"
-                  : "text-slate-600 hover:bg-slate-100/70",
+                  ? "bg-primary-100 text-primary-700 shadow-card"
+                  : "text-slate-600 hover:bg-primary-50 hover:text-primary-600",
               )}
             >
               {tab.label}
@@ -97,7 +97,7 @@ export function Tabs(props: TabsProps): JSX.Element {
             role="tabpanel"
             aria-labelledby={`${tab.id}-tab`}
             hidden={!isActive}
-            className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-md"
+            className="mt-3 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-slate-700 shadow-card"
           >
             {isActive ? tab.content : null}
           </div>

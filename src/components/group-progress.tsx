@@ -101,9 +101,9 @@ export function GroupProgress({ goalId, currency }: GroupProgressProps) {
       </CardHeader>
 
       <div className="mb-4">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-primary-100">
           <div
-            className="h-full rounded-full bg-emerald-500 transition-all"
+            className="h-full rounded-full bg-primary-500 transition-all"
             style={{ width: `${progressPercent}%` }}
             role="progressbar"
             aria-valuenow={progressPercent}
@@ -115,7 +115,7 @@ export function GroupProgress({ goalId, currency }: GroupProgressProps) {
       </div>
 
       <CardContent>
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border">
           {data.members.map((member) => (
             <li key={member.userId} className="flex items-center justify-between py-3">
               <div className="min-w-0 flex-1">
